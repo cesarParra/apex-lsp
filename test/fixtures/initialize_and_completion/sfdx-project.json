@@ -1,0 +1,7 @@
+{
+  "name": "apex-lsp-it",
+  "packageDirectories": [
+    { "path": "force-app", "default": true }
+  ],
+  "sourceApiVersion": "65.0"
+}
