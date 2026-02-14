@@ -1,0 +1,230 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if version changed
+        id: check
+        run: |
+          VERSION=$(grep "^version:" pubspec.yaml | sed 's/version: //')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Version v$VERSION already exists"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version v$VERSION detected"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+  build-binaries:
+    needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            lib_ext: so
+            asset_ext: ""
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            lib_ext: dylib
+            asset_ext: ""
+          - os: macos-latest
+            platform: darwin
+            arch: x64
+            lib_ext: dylib
+            asset_ext: ""
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            lib_ext: dll
+            asset_ext: ".exe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install Dart dependencies
+        shell: bash
+        run: dart pub get
+
+      - name: Run build_runner
+        shell: bash
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Tree-sitter library (Unix)
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tool/build_tree_sitter_lib.sh
+          ./tool/build_tree_sitter_lib.sh
+
+      - name: Build Tree-sitter library (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORK_DIR=".tree-sitter-build"
+          TREE_SITTER_DIR="${WORK_DIR}/tree-sitter"
+          SFAPEX_DIR="${WORK_DIR}/tree-sitter-sfapex"
+
+          mkdir -p "$WORK_DIR" bin
+
+          git clone https://github.com/tree-sitter/tree-sitter.git "$TREE_SITTER_DIR"
+          git clone https://github.com/aheber/tree-sitter-sfapex.git "$SFAPEX_DIR"
+
+          # Build tree-sitter runtime as a static library
+          pushd "$TREE_SITTER_DIR" >/dev/null
+          gcc -c -fPIC -I lib/include -I lib/src lib/src/lib.c -o lib.o
+          ar rcs libtree-sitter.a lib.o
+          popd >/dev/null
+
+          # Build the shared library (DLL)
+          gcc -shared -o bin/tree_sitter_sfapex.dll \
+            -I "${TREE_SITTER_DIR}/lib/include" \
+            "${SFAPEX_DIR}/apex/src/parser.c" \
+            "${TREE_SITTER_DIR}/libtree-sitter.a"
+
+          rm -rf "$WORK_DIR"
+
+      - name: Build native binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ASSET_NAME="apex-lsp-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.asset_ext }}"
+
+          if [[ "${{ matrix.platform }}" == "darwin" && "${{ matrix.arch }}" == "arm64" ]]; then
+            export DART_COMPILE_EXE_OPTIONS="--target-os=macos-arm64"
+          elif [[ "${{ matrix.platform }}" == "darwin" && "${{ matrix.arch }}" == "x64" ]]; then
+            export DART_COMPILE_EXE_OPTIONS="--target-os=macos-x64"
+          fi
+
+          dart compile exe bin/apex_lsp.dart -o "dist/$ASSET_NAME"
+
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            chmod +x "dist/$ASSET_NAME"
+          fi
+
+      - name: Package binary with native library
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PLATFORM="${{ matrix.platform }}"
+          ARCH="${{ matrix.arch }}"
+          LIB_EXT="${{ matrix.lib_ext }}"
+          ASSET_EXT="${{ matrix.asset_ext }}"
+
+          # Determine the native library filename
+          if [ "$PLATFORM" = "windows" ]; then
+            LIB_NAME="tree_sitter_sfapex.${LIB_EXT}"
+          else
+            LIB_NAME="libtree_sitter_sfapex.${LIB_EXT}"
+          fi
+
+          # Copy the native library next to the binary
+          cp "bin/${LIB_NAME}" "dist/${LIB_NAME}"
+
+          # Create a tar.gz (or zip for Windows)
+          cd dist
+          ARCHIVE_NAME="apex-lsp-${PLATFORM}-${ARCH}"
+          if [ "$PLATFORM" = "windows" ]; then
+            7z a "../${ARCHIVE_NAME}.zip" "apex-lsp-${PLATFORM}-${ARCH}${ASSET_EXT}" "${LIB_NAME}"
+          else
+            tar czf "../${ARCHIVE_NAME}.tar.gz" "apex-lsp-${PLATFORM}-${ARCH}${ASSET_EXT}" "${LIB_NAME}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-lsp-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            apex-lsp-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.platform == 'windows' && '.zip' || '.tar.gz' }}
+
+  create-release:
+    needs: [check-version, build-binaries]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          cat > release-notes.md << EOF
+          apex-lsp v${VERSION}
+
+          ## Installation
+
+          Download the appropriate archive for your platform from the assets below
+          and extract it. The archive contains the \`apex-lsp\` binary and the
+          Tree-sitter native library which must be kept in the same directory.
+
+          | Platform | Asset |
+          |----------|-------|
+          | Linux x64 | \`apex-lsp-linux-x64.tar.gz\` |
+          | macOS ARM64 (Apple Silicon) | \`apex-lsp-darwin-arm64.tar.gz\` |
+          | macOS x64 (Intel) | \`apex-lsp-darwin-x64.tar.gz\` |
+          | Windows x64 | \`apex-lsp-windows-x64.zip\` |
+          EOF
+
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes-file release-notes.md \
+            --target main
+
+      - name: Upload Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-version.outputs.version }}"
+
+          for artifactDir in artifacts/*; do
+            if [ -d "$artifactDir" ]; then
+              for file in "$artifactDir"/*; do
+                echo "Uploading $file"
+                gh release upload "v${VERSION}" "$file" --clobber
+              done
+            fi
+          done
