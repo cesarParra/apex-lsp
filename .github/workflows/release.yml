@@ -120,6 +120,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          mkdir -p dist
           ASSET_NAME="apex-lsp-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.asset_ext }}"
 
           if [[ "${{ matrix.platform }}" == "darwin" && "${{ matrix.arch }}" == "arm64" ]]; then
