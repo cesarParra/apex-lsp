@@ -1,5 +1,7 @@
 import 'dart:io';
 
+typedef ClassFile = ({String name, String source});
+
 /// A temporary SFDX workspace for integration tests.
 final class TestWorkspace {
   final Directory directory;
@@ -14,11 +16,10 @@ final class TestWorkspace {
 
 /// Creates a temporary SFDX workspace with the given Apex class files.
 ///
-/// Each entry in [classFiles] maps a file name (e.g. `'Foo.cls'`) to its
-/// content. The workspace includes an `sfdx-project.json` copied from
-/// fixtures and the standard `force-app/main/default/classes` directory.
+/// The workspace includes an `sfdx-project.json` copied from fixtures
+/// and the standard `force-app/main/default/classes` directory.
 Future<TestWorkspace> createTestWorkspace({
-  Map<String, String> classFiles = const {},
+  List<ClassFile> classFiles = const [],
 }) async {
   final directory = await Directory.systemTemp.createTemp('apex-lsp-it-');
 
@@ -32,9 +33,9 @@ Future<TestWorkspace> createTestWorkspace({
   );
   await classesDir.create(recursive: true);
 
-  for (final entry in classFiles.entries) {
-    final file = File('${classesDir.path}/${entry.key}');
-    await file.writeAsString(entry.value);
+  for (final classFile in classFiles) {
+    final file = File('${classesDir.path}/${classFile.name}');
+    await file.writeAsString(classFile.source);
   }
 
   return TestWorkspace(directory);

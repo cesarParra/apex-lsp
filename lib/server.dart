@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
-import 'package:apex_lsp/indexing/indexer.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
 
 import 'lsp_out.dart';
@@ -38,7 +38,7 @@ typedef ExitFn = Never Function(int exitCode);
 ///   exitFn: exit,
 ///   openDocuments: OpenDocuments(),
 ///   localIndexer: LocalIndexer(bindings: treeSitterBindings),
-///   workspaceIndexer: ApexIndexer(fileSystem: fs, platform: platform),
+///   workspaceIndexer: Indexer(sfdxWorkspaceLocator: locator, fileSystem: fs, platform: platform),
 /// );
 /// await server.run();
 /// ```
@@ -46,7 +46,7 @@ typedef ExitFn = Never Function(int exitCode);
 /// See also:
 ///  * [MessageReader], which parses incoming LSP messages.
 ///  * [LspOut], which sends outgoing LSP responses.
-///  * [ApexIndexer], which indexes workspace Apex files.
+///  * [WorkspaceIndexer], which indexes workspace Apex files.
 final class Server {
   Server({
     required LspOut output,
@@ -54,7 +54,7 @@ final class Server {
     required ExitFn exitFn,
     required OpenDocuments openDocuments,
     required LocalIndexer localIndexer,
-    required ApexIndexer workspaceIndexer,
+    required WorkspaceIndexer workspaceIndexer,
   }) : _output = output,
        _reader = reader,
        _exitFn = exitFn,
@@ -68,7 +68,8 @@ final class Server {
 
   final OpenDocuments _openDocuments;
   final LocalIndexer _localIndexer;
-  final ApexIndexer _workspaceIndexer;
+  final WorkspaceIndexer _workspaceIndexer;
+  IndexRepository? _indexRepository;
 
   InitializationStatus _initializationStatus = NotInitialized();
   bool _shutdownRequested = false;
@@ -188,6 +189,8 @@ final class Server {
               _output.progress(params: value);
             }
 
+            _indexRepository = _workspaceIndexer.getIndexLoader();
+
           case TextDocumentDidOpenMessage(:final params):
             _openDocuments.didOpen(params);
           case TextDocumentDidChangeMessage(:final params):
@@ -267,10 +270,12 @@ final class Server {
     if (text == null) {
       return;
     }
+    final localIndex = localIndexer.parseAndIndex(text);
+    final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
     final completionList = await onCompletion(
       text: text,
       position: params.position,
-      index: localIndexer.parseAndIndex(text),
+      index: [...localIndex, ...workspaceTypes],
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
   }
