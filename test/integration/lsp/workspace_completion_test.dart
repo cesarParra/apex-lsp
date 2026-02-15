@@ -348,4 +348,45 @@ sample.{cursor}''');
       expect(completions, containsCompletion('move'));
     });
   });
+
+  group('Workspace Completion with many indexed types', () {
+    late TestWorkspace workspace;
+    late LspClient client;
+
+    setUp(() async {
+      workspace = await createTestWorkspace(
+        classFiles: [
+          for (var i = 0; i < 30; i++)
+            (
+              name: 'Class${i.toString().padLeft(2, '0')}.cls',
+              source: 'public class Class${i.toString().padLeft(2, '0')} {}',
+            ),
+        ],
+      );
+      client = createLspClient()..start();
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+    });
+
+    tearDown(() async {
+      await client.dispose();
+      await deleteTestWorkspace(workspace);
+    });
+
+    test('finds type not in initial top 25 after narrowing prefix', () async {
+      final textWithPosition = extractCursorPosition('Class2{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, containsCompletion('Class29'));
+    });
+  });
 }

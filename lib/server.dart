@@ -191,6 +191,14 @@ final class Server {
 
             _indexRepository = _workspaceIndexer.getIndexLoader();
 
+            final declarations = await _indexRepository!.getDeclarations();
+            await logMessage(
+              MessageType.log,
+              '[apex-lsp] Workspace index loaded: '
+              '${declarations.length} types: '
+              '${declarations.map((d) => d.name.value).toList()}',
+            );
+
           case TextDocumentDidOpenMessage(:final params):
             _openDocuments.didOpen(params);
           case TextDocumentDidChangeMessage(:final params):
@@ -272,10 +280,21 @@ final class Server {
     }
     final localIndex = localIndexer.parseAndIndex(text);
     final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
+
+    await logMessage(
+      MessageType.log,
+      '[apex-lsp] Completion request: '
+      'uri=${params.textDocument.uri} '
+      'pos=(${params.position.line}:${params.position.character}) '
+      'localIndex=${localIndex.length} '
+      'workspaceTypes=${workspaceTypes.length}',
+    );
+
     final completionList = await onCompletion(
       text: text,
       position: params.position,
       index: [...localIndex, ...workspaceTypes],
+      log: (message) => logMessage(MessageType.log, '[apex-lsp] $message'),
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
   }

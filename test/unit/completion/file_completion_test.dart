@@ -841,6 +841,157 @@ void main() {
       expect(completionList.items, contains(CompletionItem(label: 'C')));
     });
 
+    test(
+      'marks list as incomplete with empty prefix and more than max items',
+      () async {
+        final types = List.generate(
+          30,
+          (i) => IndexedClass(DeclarationName('Type${i.toString().padLeft(2, '0')}')),
+        );
+
+        final completionList = await complete(
+          extractCursorPosition('{cursor}'),
+          index: types,
+        );
+
+        expect(completionList.isIncomplete, isTrue);
+        expect(completionList.items, hasLength(maxCompletionItems));
+      },
+    );
+
+    test('finds a specific type among more than 25 workspace types', () async {
+      final types = List.generate(
+        30,
+        (i) => IndexedClass(DeclarationName('Type$i')),
+      );
+      final target = IndexedClass(DeclarationName('ZebraService'));
+
+      final completionList = await complete(
+        extractCursorPosition('Zeb{cursor}'),
+        index: [...types, target],
+      );
+
+      expect(completionList.items, hasLength(1));
+      expect(completionList.items.first.label, 'ZebraService');
+    });
+
+    test(
+      'typing first letter finds type even with many other types',
+      () async {
+        final types = [
+          for (final name in [
+            'AccountService', 'AccountTrigger', 'AccountHelper',
+            'BatchProcessor', 'BulkDataLoader',
+            'ContactService', 'ContactTrigger', 'CaseManager',
+            'DataFactory', 'DataMigration',
+            'EmailService', 'EventHandler',
+            'FieldMapper', 'FileUploader',
+            'GroupManager', 'GlobalSettings',
+            'HttpCallout', 'HistoryTracker',
+            'IntegrationService', 'InvoiceGenerator',
+            'JobScheduler', 'JsonParser',
+            'KeyGenerator', 'KnowledgeService',
+            'LeadConverter', 'LoggingService',
+            'MetadataService', 'MockFactory',
+            'NotificationService', 'NumberUtils',
+            'OpportunityService', 'OrderProcessor',
+          ])
+            IndexedClass(DeclarationName(name)),
+        ];
+
+        final completionList = await complete(
+          extractCursorPosition('N{cursor}'),
+          index: types,
+        );
+
+        expect(completionList.items, hasLength(2));
+        expect(
+          completionList.items.map((item) => item.label).toList(),
+          containsAll(['NotificationService', 'NumberUtils']),
+        );
+      },
+    );
+
+    test(
+      'returns isIncomplete true on empty prefix with many types so '
+      'client re-requests on each keystroke',
+      () async {
+        final types = List.generate(
+          30,
+          (i) => IndexedClass(DeclarationName('Class$i')),
+        );
+
+        // Empty prefix: client opens autocomplete popup
+        final initial = await complete(
+          extractCursorPosition('{cursor}'),
+          index: types,
+        );
+        // Must be incomplete so client doesn't cache and filter locally
+        expect(initial.isIncomplete, isTrue);
+
+        // User types "Class2" — only 11 match (Class2, Class20..Class29)
+        final filtered = await complete(
+          extractCursorPosition('Class2{cursor}'),
+          index: types,
+        );
+        expect(filtered.isIncomplete, isFalse);
+        expect(filtered.items, hasLength(11));
+        expect(
+          filtered.items.map((item) => item.label),
+          contains('Class29'),
+        );
+      },
+    );
+
+    test(
+      'marks list as incomplete when filtered results exceed max items',
+      () async {
+        // 30 types all starting with "Type" — more than maxCompletionItems
+        final types = List.generate(
+          30,
+          (i) => IndexedClass(DeclarationName('Type${i.toString().padLeft(2, '0')}')),
+        );
+
+        final completionList = await complete(
+          extractCursorPosition('Type{cursor}'),
+          index: types,
+        );
+
+        expect(completionList.isIncomplete, isTrue);
+        expect(completionList.items, hasLength(maxCompletionItems));
+      },
+    );
+
+    test(
+      'narrows results when prefix becomes more specific',
+      () async {
+        // 30 types all starting with "Type"
+        final types = List.generate(
+          30,
+          (i) => IndexedClass(DeclarationName('Type${i.toString().padLeft(2, '0')}')),
+        );
+
+        // Broad prefix: "Type" matches all 30, returns 25 (incomplete)
+        final broad = await complete(
+          extractCursorPosition('Type{cursor}'),
+          index: types,
+        );
+        expect(broad.isIncomplete, isTrue);
+
+        // Specific prefix: "Type2" matches Type20-Type29 (10 items)
+        final specific = await complete(
+          extractCursorPosition('Type2{cursor}'),
+          index: types,
+        );
+        expect(specific.isIncomplete, isFalse);
+        expect(specific.items, hasLength(10));
+        expect(
+          specific.items.map((item) => item.label),
+          contains('Type29'),
+        );
+      },
+    );
+
     test('autocomplete instance class methods', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),

@@ -194,11 +194,15 @@ const maxCompletionItems = 25;
 ///  * [ContextDetector], which determines the completion context.
 ///  * [rankCandidates], which applies Levenshtein-based ranking.
 ///  * [LocalIndexer], which provides the declaration index.
+/// Optional logging callback for completion diagnostics.
+typedef CompletionLog = void Function(String message);
+
 Future<CompletionList> onCompletion({
   required String? text,
   required Position position,
   required List<Declaration> index,
   Rank rank = rankCandidates,
+  CompletionLog? log,
 }) async {
   if (text == null) {
     return CompletionList(isIncomplete: false, items: <CompletionItem>[]);
@@ -210,12 +214,21 @@ Future<CompletionList> onCompletion({
     character: position.character,
   );
 
+  final indexedTypeCount = index.whereType<IndexedType>().length;
+  log?.call(
+    'Completion request: line=${position.line} char=${position.character} '
+    'cursorOffset=$cursorOffset indexSize=${index.length} '
+    'indexedTypes=$indexedTypeCount',
+  );
+
   final contextDetector = ContextDetector();
   final context = await contextDetector.detect(
     text: text,
     cursorOffset: cursorOffset,
     index: index,
   );
+
+  log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');
 
   List<CompletionCandidate> topLevelCandidates() {
     final enclosing = index.enclosingAt<Declaration>(cursorOffset);
@@ -333,10 +346,18 @@ Future<CompletionList> onCompletion({
     CompletionContextTopLevel() => topLevelCandidates(),
   };
 
+  log?.call('Total candidates before filtering: ${candidates.length}');
+
   final filteredCandidates = candidates.where(
     (candidate) => potentiallyMatches(context, candidate),
+  ).toList();
+
+  log?.call(
+    'After prefix filter: ${filteredCandidates.length} '
+    '(prefix="${context.prefix}")',
   );
-  final items = rankCandidates(filteredCandidates, prefix)
+
+  final rankedItems = rankCandidates(filteredCandidates, prefix)
       .take(maxCompletionItems)
       .map(
         (candidate) =>
@@ -344,9 +365,17 @@ Future<CompletionList> onCompletion({
       )
       .toList();
 
+  final isIncomplete = filteredCandidates.length > maxCompletionItems;
+
+  log?.call(
+    'Returning ${rankedItems.length} items, '
+    'isIncomplete=$isIncomplete'
+    '${rankedItems.isNotEmpty ? ' first=${rankedItems.first.label}' : ''}',
+  );
+
   return CompletionList(
-    isIncomplete: filteredCandidates.length > maxCompletionItems,
-    items: items,
+    isIncomplete: isIncomplete,
+    items: rankedItems,
   );
 }
 
