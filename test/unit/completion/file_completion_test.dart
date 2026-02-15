@@ -1,9 +1,3 @@
-// Contains tests related to autocompleting from types and
-// members declared on the file itself. Use cases include
-// Anon-apex, where there can be multiple types and variables
-// declared at the root of the same file, or a completing
-// members from a single class.
-
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/message.dart';
@@ -774,9 +768,7 @@ void main() {
         members: [
           IndexedClass(
             DeclarationName('Bar'),
-            members: [
-              FieldMember(DeclarationName('name'), isStatic: false),
-            ],
+            members: [FieldMember(DeclarationName('name'), isStatic: false)],
           ),
         ],
       );
