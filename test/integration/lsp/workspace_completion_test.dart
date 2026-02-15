@@ -78,5 +78,22 @@ void main() {
 
       expect(completions, containsCompletion('Season'));
     });
+
+    test('completes workspace enum values via dot access', () async {
+      final textWithPosition = extractCursorPosition('Season.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        containsCompletions(['SPRING', 'SUMMER', 'FALL', 'WINTER']),
+      );
+    });
   });
 }
