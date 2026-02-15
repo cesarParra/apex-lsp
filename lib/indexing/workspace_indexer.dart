@@ -10,8 +10,8 @@ import 'package:apex_lsp/utils/result.dart';
 import 'package:apex_reflection/apex_reflection.dart' as apex_reflection;
 import 'package:file/file.dart';
 
-final class Indexer {
-  Indexer({
+final class WorkspaceIndexer {
+  WorkspaceIndexer({
     required SfdxWorkspaceLocator sfdxWorkspaceLocator,
     required FileSystem fileSystem,
     required LspPlatform platform,

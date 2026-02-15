@@ -41,4 +41,41 @@ void main() {
       expect(completions, hasNoCompletions);
     });
   });
+
+  group('Workspace Completion with indexed types', () {
+    late TestWorkspace workspace;
+    late LspClient client;
+
+    setUp(() async {
+      workspace = await createTestWorkspace(
+        classFiles: {
+          'Season.cls': 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
+        },
+      );
+      client = createLspClient()..start();
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+    });
+
+    tearDown(() async {
+      await client.dispose();
+      await deleteTestWorkspace(workspace);
+    });
+
+    test('completes workspace enum name at top level', () async {
+      final textWithPosition = extractCursorPosition('Sea{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, containsCompletion('Season'));
+    });
+  });
 }
