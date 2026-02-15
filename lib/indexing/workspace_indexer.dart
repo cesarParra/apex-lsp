@@ -73,8 +73,8 @@ final class Indexer {
     );
   }
 
-  IndexLoader getIndexLoader() {
-    return IndexLoader(
+  IndexRepository getIndexLoader() {
+    return IndexRepository(
       fileSystem: _fileSystem,
       platform: _platform,
       workspaceRootUris: _workspaceRootUris,
@@ -324,8 +324,8 @@ final class Indexer {
   }
 }
 
-final class IndexLoader {
-  IndexLoader({
+final class IndexRepository {
+  IndexRepository({
     required FileSystem fileSystem,
     required LspPlatform platform,
     required List<Uri> workspaceRootUris,
