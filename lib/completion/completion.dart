@@ -221,19 +221,20 @@ Future<CompletionList> onCompletion({
     'indexedTypes=$indexedTypeCount',
   );
 
+  final enclosing = index.enclosingAt<Declaration>(cursorOffset);
+  final expandedIndex = [...index, ..._getBodyDeclarations(enclosing)];
+
   final contextDetector = ContextDetector();
   final context = await contextDetector.detect(
     text: text,
     cursorOffset: cursorOffset,
-    index: index,
+    index: expandedIndex,
   );
 
   log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');
 
   List<CompletionCandidate> topLevelCandidates() {
-    final enclosing = index.enclosingAt<Declaration>(cursorOffset);
-
-    return [...index, ..._getBodyDeclarations(enclosing)]
+    return expandedIndex
         .where((declaration) => declaration.isVisibleAt(cursorOffset))
         .map(
           (declaration) => switch (declaration) {
