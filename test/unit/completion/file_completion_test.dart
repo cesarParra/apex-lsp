@@ -1021,5 +1021,32 @@ void main() {
       expect(completionList.items, hasLength(1));
       expect(completionList.items.first.label, 'instanceMethod');
     });
+
+    test('autocomplete instance members via class field dot access', () async {
+      final environment = IndexedClass(
+        DeclarationName('Environment'),
+        members: [
+          FieldMember(DeclarationName('variables'), isStatic: false),
+          MethodDeclaration(
+            DeclarationName('define'),
+            body: Block.empty(),
+            isStatic: false,
+          ),
+        ],
+      );
+      final field = FieldMember(
+        DeclarationName('env'),
+        isStatic: false,
+        typeName: DeclarationName('Environment'),
+      );
+      final completionList = await complete(
+        extractCursorPosition('env.{cursor}'),
+        index: [environment, field],
+      );
+
+      expect(completionList.items, hasLength(2));
+      expect(completionList.items, contains(CompletionItem(label: 'variables')));
+      expect(completionList.items, contains(CompletionItem(label: 'define')));
+    });
   });
 }

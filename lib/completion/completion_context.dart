@@ -173,7 +173,8 @@ final class ContextDetector {
             'Autocompleting constructors is not supported at the moment',
           ),
 
-          FieldMember() ||
+          FieldMember(:final typeName) => typeName?.value,
+
           MethodDeclaration() ||
           EnumValueMember() => throw UnimplementedError(),
 

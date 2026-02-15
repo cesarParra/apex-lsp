@@ -248,11 +248,20 @@ class LocalIndexer {
         final fieldNameNode = _getField(declaratorNode, 'name');
         final fieldName = _nodeText(fieldNameNode, bytes);
 
+        final typeNode = _getField(fieldNode, 'type');
+        final fieldTypeName = _nodeText(typeNode, bytes);
+
         final isStatic = _hasStaticModifier(fieldNode, bytes);
 
         if (fieldName.isNotEmpty) {
           members.add(
-            FieldMember(DeclarationName(fieldName), isStatic: isStatic),
+            FieldMember(
+              DeclarationName(fieldName),
+              isStatic: isStatic,
+              typeName: fieldTypeName.isNotEmpty
+                  ? DeclarationName(fieldTypeName)
+                  : null,
+            ),
           );
         }
       }

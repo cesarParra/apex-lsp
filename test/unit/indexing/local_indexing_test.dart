@@ -418,6 +418,16 @@ public Enum Foo { A, B, C };
       expect(fieldDeclaration.isStatic, false);
     });
 
+    test('indexes field type name', () {
+      final text = 'public class Foo { Environment env; }';
+
+      final result = indexer.parseAndIndex(text);
+
+      final classDeclaration = result.first as IndexedClass;
+      final fieldDeclaration = classDeclaration.members.first as FieldMember;
+      expect(fieldDeclaration.typeName, equals(DeclarationName('Environment')));
+    });
+
     test('indexes static class methods', () {
       final text = 'public class Foo { static String bar() {} }';
 
