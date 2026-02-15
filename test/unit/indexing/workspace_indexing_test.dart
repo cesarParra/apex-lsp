@@ -237,10 +237,20 @@ void main() {
         final result = await repository.getIndexedType('Season');
 
         expect(result, isA<IndexedEnum>());
-        final indexedEnum = result as IndexedEnum;
-        expect(indexedEnum.name, equals(DeclarationName('Season')));
+        expect(result!.name, equals(DeclarationName('Season')));
+      });
+
+      test('indexes enum values', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: {
+            'Season.cls': 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
+          },
+        );
+
+        final result = await repository.getIndexedType('Season') as IndexedEnum;
+
         expect(
-          indexedEnum.values.map((value) => value.name.value).toList(),
+          result.values.map((value) => value.name.value).toList(),
           equals(['SPRING', 'SUMMER', 'FALL', 'WINTER']),
         );
       });
