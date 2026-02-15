@@ -96,4 +96,65 @@ void main() {
       );
     });
   });
+
+  group('Workspace Completion with indexed interfaces', () {
+    late TestWorkspace workspace;
+    late LspClient client;
+
+    setUp(() async {
+      workspace = await createTestWorkspace(
+        classFiles: [
+          (
+            name: 'Greeter.cls',
+            source:
+                'public interface Greeter { String greet(); void sayGoodbye(); }',
+          ),
+        ],
+      );
+      client = createLspClient()..start();
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+    });
+
+    tearDown(() async {
+      await client.dispose();
+      await deleteTestWorkspace(workspace);
+    });
+
+    test('completes workspace interface name at top level', () async {
+      final textWithPosition = extractCursorPosition('Gre{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, containsCompletion('Greeter'));
+    });
+
+    test('completes workspace interface methods via variable dot access',
+        () async {
+      final textWithPosition = extractCursorPosition('''
+Greeter myVar;
+myVar.{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        containsCompletions(['greet', 'sayGoodbye']),
+      );
+    });
+  });
 }

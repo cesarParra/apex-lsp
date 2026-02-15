@@ -417,11 +417,18 @@ final class IndexRepository {
     IndexedInterface fromInterfaceMirror(
       apex_reflection.InterfaceMirror mirror,
     ) {
-      // TODO: Parse and populate methods
       // TODO: Parse and populate super
       return IndexedInterface(
         DeclarationName(mirror.name),
-        methods: [],
+        methods: mirror.methods
+            .map(
+              (method) => MethodDeclaration(
+                DeclarationName(method.name),
+                body: Block.empty(),
+                isStatic: method.isStatic,
+              ),
+            )
+            .toList(),
         superInterface: null,
       );
     }

@@ -190,5 +190,44 @@ void main() {
         );
       });
     });
+
+    group('interfaces', () {
+      test('indexes top level interfaces', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Greeter.cls',
+              source:
+                  'public interface Greeter { String greet(); void sayGoodbye(); }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Greeter');
+
+        expect(result, isA<IndexedInterface>());
+        expect(result!.name, equals(DeclarationName('Greeter')));
+      });
+
+      test('indexes interface methods', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Greeter.cls',
+              source:
+                  'public interface Greeter { String greet(); void sayGoodbye(); }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Greeter') as IndexedInterface;
+
+        expect(
+          result.methods.map((method) => method.name.value).toList(),
+          equals(['greet', 'sayGoodbye']),
+        );
+      });
+    });
   });
 }
