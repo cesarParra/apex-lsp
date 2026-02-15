@@ -73,11 +73,12 @@ final class WorkspaceIndexer {
     );
   }
 
-  IndexRepository getIndexLoader() {
+  IndexRepository getIndexLoader({IndexRepositoryLog? log}) {
     return IndexRepository(
       fileSystem: _fileSystem,
       platform: _platform,
       workspaceRootUris: _workspaceRootUris,
+      log: log,
     );
   }
 
@@ -324,20 +325,26 @@ final class WorkspaceIndexer {
   }
 }
 
+/// Optional logging callback for index repository diagnostics.
+typedef IndexRepositoryLog = void Function(String message);
+
 final class IndexRepository {
   IndexRepository({
     required FileSystem fileSystem,
     required LspPlatform platform,
     required List<Uri> workspaceRootUris,
+    IndexRepositoryLog? log,
   }) : _fileSystem = fileSystem,
        _platform = platform,
-       _workspaceRootUris = workspaceRootUris;
+       _workspaceRootUris = workspaceRootUris,
+       _log = log;
 
   static const String indexFolderName = '.sf-zed';
 
   final FileSystem _fileSystem;
   final LspPlatform _platform;
   final List<Uri> _workspaceRootUris;
+  final IndexRepositoryLog? _log;
 
   Future<List<IndexedType>> getDeclarations() async {
     // TODO: Implement caching
@@ -371,29 +378,62 @@ final class IndexRepository {
     final indexDir = _fileSystem.directory(
       _fileSystem.path.join(rootPath, indexFolderName),
     );
-    if (!indexDir.existsSync()) return {};
+    if (!indexDir.existsSync()) {
+      _log?.call('Index directory does not exist: ${indexDir.path}');
+      return {};
+    }
 
-    Map<String, IndexedType> indexedTypesByName = {};
-    for (final entity in indexDir.listSync(
+    final allFiles = indexDir.listSync(
       recursive: false,
       followLinks: false,
-    )) {
-      if (entity is! File) continue;
-      if (!entity.path.toLowerCase().endsWith('.json')) continue;
+    );
+    final jsonFiles =
+        allFiles.whereType<File>().where(
+          (f) => f.path.toLowerCase().endsWith('.json'),
+        ).toList();
 
+    _log?.call(
+      'Found ${jsonFiles.length} JSON files in ${indexDir.path}',
+    );
+
+    Map<String, IndexedType> indexedTypesByName = {};
+    for (final file in jsonFiles) {
       try {
-        final file = _fileSystem.file(entity.path);
-        if (!await file.exists()) continue;
+        if (!await file.exists()) {
+          _log?.call('File does not exist: ${file.path}');
+          continue;
+        }
 
         final content = await file.readAsString();
         final decoded = jsonDecode(content);
         final indexedType = _parseIndexedType(decoded);
-        if (indexedType == null) continue;
-        indexedTypesByName[indexedType.name.value.toLowerCase()] = indexedType;
-      } catch (_) {
-        // TODO: Ignoring malformed index entries for now.
+        if (indexedType == null) {
+          final typeName = decoded is Map ? decoded['typeMirror'] : null;
+          final typeNameValue =
+              typeName is Map ? typeName['type_name'] : 'unknown';
+          _log?.call(
+            'SKIPPED ${file.path}: '
+            '_parseIndexedType returned null '
+            '(type_name=$typeNameValue)',
+          );
+          continue;
+        }
+        final key = indexedType.name.value.toLowerCase();
+        if (indexedTypesByName.containsKey(key)) {
+          _log?.call(
+            'DUPLICATE key "$key": '
+            '${file.path} overwrites previous entry',
+          );
+        }
+        indexedTypesByName[key] = indexedType;
+      } catch (error) {
+        _log?.call('ERROR reading ${file.path}: $error');
       }
     }
+
+    _log?.call(
+      'Loaded ${indexedTypesByName.length} types from ${jsonFiles.length} files',
+    );
 
     return indexedTypesByName;
   }

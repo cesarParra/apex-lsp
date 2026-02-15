@@ -189,7 +189,10 @@ final class Server {
               _output.progress(params: value);
             }
 
-            _indexRepository = _workspaceIndexer.getIndexLoader();
+            _indexRepository = _workspaceIndexer.getIndexLoader(
+              log: (message) =>
+                  logMessage(MessageType.log, '[apex-lsp] $message'),
+            );
 
             final declarations = await _indexRepository!.getDeclarations();
             await logMessage(
