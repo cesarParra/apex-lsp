@@ -12,20 +12,7 @@ void main() {
     late LspClient client;
 
     setUp(() async {
-      workspace = await createTestWorkspace(
-        classFiles: {
-          'Foo.cls': '''
-public class Foo {
-  public static void hello() {}
-}''',
-          'Season.cls': 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
-          'Greeter.cls': '''
-public interface Greeter {
-  String greet();
-  void sayGoodbye();
-}''',
-        },
-      );
+      workspace = await createTestWorkspace();
       client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
