@@ -229,5 +229,175 @@ void main() {
         );
       });
     });
+
+    group('classes', () {
+      test('indexes top level classes', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Account.cls',
+              source: 'public class Account {}',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Account');
+
+        expect(result, isA<IndexedClass>());
+        expect(result!.name, equals(DeclarationName('Account')));
+      });
+
+      test('indexes static class fields', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { static String bar; }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.name, equals(DeclarationName('bar')));
+        expect(field.isStatic, isTrue);
+      });
+
+      test('indexes instance class fields', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { String bar; }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.name, equals(DeclarationName('bar')));
+        expect(field.isStatic, isFalse);
+      });
+
+      test('indexes class properties as fields', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { public String bar { get; set; } }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.name, equals(DeclarationName('bar')));
+      });
+
+      test('indexes static class methods', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { static void doWork() {} }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final method = result.members.whereType<MethodDeclaration>().first;
+
+        expect(method.name, equals(DeclarationName('doWork')));
+        expect(method.isStatic, isTrue);
+      });
+
+      test('indexes instance class methods', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { void doWork() {} }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final method = result.members.whereType<MethodDeclaration>().first;
+
+        expect(method.name, equals(DeclarationName('doWork')));
+        expect(method.isStatic, isFalse);
+      });
+
+      test('indexes inner classes as members', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { public class Bar { String name; void doWork() {} } }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final innerClasses =
+            result.members.whereType<IndexedClass>().toList();
+
+        expect(innerClasses, hasLength(1));
+        expect(innerClasses.first.name, equals(DeclarationName('Bar')));
+        expect(innerClasses.first.members, hasLength(2));
+      });
+
+      test('indexes inner interfaces as members', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { public interface Bar { void doWork(); String getName(); } }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final innerInterfaces =
+            result.members.whereType<IndexedInterface>().toList();
+
+        expect(innerInterfaces, hasLength(1));
+        expect(innerInterfaces.first.name, equals(DeclarationName('Bar')));
+        expect(innerInterfaces.first.methods, hasLength(2));
+      });
+
+      test('indexes inner enums as members', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { public enum Status { ACTIVE, INACTIVE } }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Foo') as IndexedClass;
+        final innerEnums =
+            result.members.whereType<IndexedEnum>().toList();
+
+        expect(innerEnums, hasLength(1));
+        expect(innerEnums.first.name, equals(DeclarationName('Status')));
+        expect(innerEnums.first.values, hasLength(2));
+      });
+    });
   });
 }
