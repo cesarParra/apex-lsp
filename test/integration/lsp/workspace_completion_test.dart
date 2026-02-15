@@ -12,9 +12,7 @@ void main() {
     late LspClient client;
 
     setUp(() async {
-      workspace = await createTestWorkspace(
-        classFiles: {},
-      );
+      workspace = await createTestWorkspace();
       client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
@@ -48,9 +46,12 @@ void main() {
 
     setUp(() async {
       workspace = await createTestWorkspace(
-        classFiles: {
-          'Season.cls': 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
-        },
+        classFiles: [
+          (
+            name: 'Season.cls',
+            source: 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
+          ),
+        ],
       );
       client = createLspClient()..start();
       await client.initialize(

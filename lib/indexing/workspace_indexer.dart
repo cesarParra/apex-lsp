@@ -339,17 +339,15 @@ final class IndexRepository {
   final LspPlatform _platform;
   final List<Uri> _workspaceRootUris;
 
-  Future<List<String>> getTypeNames() async {
+  Future<List<IndexedType>> getDeclarations() async {
     // TODO: Implement caching
 
-    final typeNames = <String>[];
+    final declarations = <IndexedType>[];
     for (final root in _workspaceRootUris) {
-      final indexedtypesForWorkspace = await _loadIndexedTypesForWorkspace(
-        root,
-      );
-      typeNames.addAll(indexedtypesForWorkspace.keys);
+      final indexedTypes = await _loadIndexedTypesForWorkspace(root);
+      declarations.addAll(indexedTypes.values);
     }
-    return typeNames;
+    return declarations;
   }
 
   Future<IndexedType?> getIndexedType(String typeName) async {
@@ -357,12 +355,10 @@ final class IndexRepository {
 
     // TODO: Implement caching
 
-    Map<String, IndexedType> indexedTypesByName = {};
+    final indexedTypesByName = <String, IndexedType>{};
     for (final root in _workspaceRootUris) {
-      final indexedtypesForWorkspace = await _loadIndexedTypesForWorkspace(
-        root,
-      );
-      indexedTypesByName.addAll(indexedtypesForWorkspace);
+      final indexedTypes = await _loadIndexedTypesForWorkspace(root);
+      indexedTypesByName.addAll(indexedTypes);
     }
 
     return indexedTypesByName[typeName.toLowerCase()];

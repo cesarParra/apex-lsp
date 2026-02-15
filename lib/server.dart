@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
-import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
@@ -272,25 +271,12 @@ final class Server {
       return;
     }
     final localIndex = localIndexer.parseAndIndex(text);
-    final workspaceTypes = await _workspaceDeclarations();
+    final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
     final completionList = await onCompletion(
       text: text,
       position: params.position,
       index: [...localIndex, ...workspaceTypes],
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
-  }
-
-  Future<List<Declaration>> _workspaceDeclarations() async {
-    final repository = _indexRepository;
-    if (repository == null) return [];
-
-    final typeNames = await repository.getTypeNames();
-    final declarations = <Declaration>[];
-    for (final name in typeNames) {
-      final indexedType = await repository.getIndexedType(name);
-      if (indexedType != null) declarations.add(indexedType);
-    }
-    return declarations;
   }
 }

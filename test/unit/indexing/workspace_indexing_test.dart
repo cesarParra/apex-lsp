@@ -116,7 +116,7 @@ void main() {
     /// Runs the Indexer to produce `.sf-zed` metadata from `.cls` files,
     /// then returns an [IndexRepository] pointed at the same workspace.
     Future<IndexRepository> indexAndCreateRepository({
-      required Map<String, String> classFiles,
+      required List<({String name, String source})> classFiles,
     }) async {
       final projectFile = workspaceRoot.childFile('sfdx-project.json');
       projectFile.writeAsStringSync(
@@ -130,8 +130,8 @@ void main() {
       final classesDir = fs.directory('/repo/force-app/main/default/classes')
         ..createSync(recursive: true);
 
-      for (final entry in classFiles.entries) {
-        classesDir.childFile(entry.key).writeAsStringSync(entry.value);
+      for (final classFile in classFiles) {
+        classesDir.childFile(classFile.name).writeAsStringSync(classFile.source);
       }
 
       final indexer = WorkspaceIndexer(
@@ -158,9 +158,12 @@ void main() {
     group('enums', () {
       test('indexes top level enums', () async {
         final repository = await indexAndCreateRepository(
-          classFiles: {
-            'Season.cls': 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
-          },
+          classFiles: [
+            (
+              name: 'Season.cls',
+              source: 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
+            ),
+          ],
         );
 
         final result = await repository.getIndexedType('Season');
@@ -171,9 +174,12 @@ void main() {
 
       test('indexes enum values', () async {
         final repository = await indexAndCreateRepository(
-          classFiles: {
-            'Season.cls': 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
-          },
+          classFiles: [
+            (
+              name: 'Season.cls',
+              source: 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
+            ),
+          ],
         );
 
         final result = await repository.getIndexedType('Season') as IndexedEnum;

@@ -12,11 +12,12 @@ void main() {
 
     setUp(() async {
       workspace = await createTestWorkspace(
-        classFiles: {
-          'Foo.cls': await readFixture(
-            'initialize_and_completion/Foo.cls',
+        classFiles: [
+          (
+            name: 'Foo.cls',
+            source: await readFixture('initialize_and_completion/Foo.cls'),
           ),
-        },
+        ],
       );
       client = createLspClient()..start();
     });
