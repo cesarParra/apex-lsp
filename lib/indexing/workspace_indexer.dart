@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/message.dart';
@@ -383,18 +382,13 @@ final class IndexRepository {
       return {};
     }
 
-    final allFiles = indexDir.listSync(
-      recursive: false,
-      followLinks: false,
-    );
-    final jsonFiles =
-        allFiles.whereType<File>().where(
-          (f) => f.path.toLowerCase().endsWith('.json'),
-        ).toList();
+    final allFiles = indexDir.listSync(recursive: false, followLinks: false);
+    final jsonFiles = allFiles
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.json'))
+        .toList();
 
-    _log?.call(
-      'Found ${jsonFiles.length} JSON files in ${indexDir.path}',
-    );
+    _log?.call('Found ${jsonFiles.length} JSON files in ${indexDir.path}');
 
     Map<String, IndexedType> indexedTypesByName = {};
     for (final file in jsonFiles) {
@@ -409,8 +403,9 @@ final class IndexRepository {
         final indexedType = _parseIndexedType(decoded);
         if (indexedType == null) {
           final typeName = decoded is Map ? decoded['typeMirror'] : null;
-          final typeNameValue =
-              typeName is Map ? typeName['type_name'] : 'unknown';
+          final typeNameValue = typeName is Map
+              ? typeName['type_name']
+              : 'unknown';
           _log?.call(
             'SKIPPED ${file.path}: '
             '_parseIndexedType returned null '
@@ -484,12 +479,14 @@ final class IndexRepository {
             (field) => FieldMember(
               DeclarationName(field.name),
               isStatic: field.isStatic,
+              typeName: DeclarationName(field.typeReference.type),
             ),
           ),
           ...mirror.properties.map(
             (property) => FieldMember(
               DeclarationName(property.name),
               isStatic: property.isStatic,
+              typeName: DeclarationName(property.typeReference.type),
             ),
           ),
           ...mirror.methods.map(
@@ -517,55 +514,6 @@ final class IndexRepository {
       _ => null,
     };
   }
-}
-
-Future<List<String>> getMemberNamesByType(
-  IndexedType source,
-  MemberType type,
-) async {
-  List<String> enumMembers(IndexedEnum sourceEnum) {
-    return switch (type) {
-      .static =>
-        sourceEnum.values.map((current) => current.name.value).toList(),
-      .instance => [],
-    };
-  }
-
-  List<String> interfaceMembers(IndexedInterface sourceInterface) {
-    return switch (type) {
-      .static => [],
-      .instance =>
-        sourceInterface.methods.map((current) => current.name.value).toList(),
-    };
-  }
-
-  bool isStaticDeclaration(Declaration declaration) => switch (declaration) {
-    FieldMember(:final isStatic) => isStatic,
-    MethodDeclaration(:final isStatic) => isStatic,
-    EnumValueMember() || IndexedType() || ConstructorDeclaration() => true,
-    IndexedVariable() => false,
-  };
-
-  List<String> classMembers(IndexedClass sourceClass) {
-    return switch (type) {
-      .static =>
-        sourceClass.members
-            .where(isStaticDeclaration)
-            .map((declaration) => declaration.name.value)
-            .toList(),
-      .instance =>
-        sourceClass.members
-            .where((declaration) => !isStaticDeclaration(declaration))
-            .map((declaration) => declaration.name.value)
-            .toList(),
-    };
-  }
-
-  return switch (source) {
-    IndexedEnum() => enumMembers(source),
-    IndexedInterface() => interfaceMembers(source),
-    IndexedClass() => classMembers(source),
-  };
 }
 
 extension on apex_reflection.MemberModifiersAwareness {

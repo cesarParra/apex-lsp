@@ -4,7 +4,9 @@ import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:test/test.dart';
 
+import '../../support/completion_matchers.dart';
 import '../../support/cursor_utils.dart';
+import '../../support/lsp_matchers.dart';
 
 void main() {
   Future<CompletionList> complete(
@@ -52,8 +54,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(completionList.items, contains(CompletionItem(label: 'Bar')));
-      expect(completionList.items, contains(CompletionItem(label: 'Baz')));
+      expect(completionList, containsCompletion('Bar'));
+      expect(completionList, containsCompletion('Baz'));
     });
 
     test('autocompletes all enum values by name', () async {
@@ -67,7 +69,7 @@ void main() {
       );
 
       expect(completionList.items, hasLength(1));
-      expect(completionList.items, contains(CompletionItem(label: 'Bar')));
+      expect(completionList, containsCompletion('Bar'));
     });
   });
 
@@ -115,11 +117,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(completionList.items, contains(CompletionItem(label: 'Foo')));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'fooInstance')),
-      );
+      expect(completionList, containsCompletion('Foo'));
+      expect(completionList, containsCompletion('fooInstance'));
     });
 
     test('does not autocomplete variables declared after cursor', () async {
@@ -246,14 +245,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'doSomething')),
-      );
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'saySomething')),
-      );
+      expect(completionList, containsCompletion('doSomething'));
+      expect(completionList, containsCompletion('saySomething'));
     });
 
     test('autocomplete members of a parameter filtered by prefix', () async {
@@ -283,10 +276,7 @@ void main() {
       );
 
       expect(completionList.items, hasLength(1));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'doSomething')),
-      );
+      expect(completionList, containsCompletion('doSomething'));
     });
 
     test('parameter is completed when cursor is inside method body', () async {
@@ -511,14 +501,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'doSomething')),
-      );
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'saySomething')),
-      );
+      expect(completionList, containsCompletion('doSomething'));
+      expect(completionList, containsCompletion('saySomething'));
     });
 
     test('autocompletes interface methods via variable', () async {
@@ -548,14 +532,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'doSomething')),
-      );
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'saySomething')),
-      );
+      expect(completionList, containsCompletion('doSomething'));
+      expect(completionList, containsCompletion('saySomething'));
     });
 
     test('autocompletes interface methods filtered by prefix', () async {
@@ -585,10 +563,7 @@ void main() {
       );
 
       expect(completionList.items, hasLength(1));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'doSomething')),
-      );
+      expect(completionList, containsCompletion('doSomething'));
     });
   });
 
@@ -758,8 +733,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(completionList.items, contains(CompletionItem(label: 'm1')));
-      expect(completionList.items, contains(CompletionItem(label: 'm2')));
+      expect(completionList, containsCompletion('m1'));
+      expect(completionList, containsCompletion('m2'));
     });
 
     test('autocomplete inner classes as static members', () async {
@@ -809,11 +784,8 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(completionList.items, contains(CompletionItem(label: 'name')));
-      expect(
-        completionList.items,
-        contains(CompletionItem(label: 'doSomething')),
-      );
+      expect(completionList, containsCompletion('name'));
+      expect(completionList, containsCompletion('doSomething'));
     });
 
     test('autocomplete inner enum values via qualified access', () async {
@@ -836,9 +808,9 @@ void main() {
       );
 
       expect(completionList.items, hasLength(3));
-      expect(completionList.items, contains(CompletionItem(label: 'A')));
-      expect(completionList.items, contains(CompletionItem(label: 'B')));
-      expect(completionList.items, contains(CompletionItem(label: 'C')));
+      expect(completionList, containsCompletion('A'));
+      expect(completionList, containsCompletion('B'));
+      expect(completionList, containsCompletion('C'));
     });
 
     test(
@@ -846,7 +818,9 @@ void main() {
       () async {
         final types = List.generate(
           30,
-          (i) => IndexedClass(DeclarationName('Type${i.toString().padLeft(2, '0')}')),
+          (i) => IndexedClass(
+            DeclarationName('Type${i.toString().padLeft(2, '0')}'),
+          ),
         );
 
         final completionList = await complete(
@@ -875,73 +849,81 @@ void main() {
       expect(completionList.items.first.label, 'ZebraService');
     });
 
-    test(
-      'typing first letter finds type even with many other types',
-      () async {
-        final types = [
-          for (final name in [
-            'AccountService', 'AccountTrigger', 'AccountHelper',
-            'BatchProcessor', 'BulkDataLoader',
-            'ContactService', 'ContactTrigger', 'CaseManager',
-            'DataFactory', 'DataMigration',
-            'EmailService', 'EventHandler',
-            'FieldMapper', 'FileUploader',
-            'GroupManager', 'GlobalSettings',
-            'HttpCallout', 'HistoryTracker',
-            'IntegrationService', 'InvoiceGenerator',
-            'JobScheduler', 'JsonParser',
-            'KeyGenerator', 'KnowledgeService',
-            'LeadConverter', 'LoggingService',
-            'MetadataService', 'MockFactory',
-            'NotificationService', 'NumberUtils',
-            'OpportunityService', 'OrderProcessor',
-          ])
-            IndexedClass(DeclarationName(name)),
-        ];
+    test('typing first letter finds type even with many other types', () async {
+      final types = [
+        for (final name in [
+          'AccountService',
+          'AccountTrigger',
+          'AccountHelper',
+          'BatchProcessor',
+          'BulkDataLoader',
+          'ContactService',
+          'ContactTrigger',
+          'CaseManager',
+          'DataFactory',
+          'DataMigration',
+          'EmailService',
+          'EventHandler',
+          'FieldMapper',
+          'FileUploader',
+          'GroupManager',
+          'GlobalSettings',
+          'HttpCallout',
+          'HistoryTracker',
+          'IntegrationService',
+          'InvoiceGenerator',
+          'JobScheduler',
+          'JsonParser',
+          'KeyGenerator',
+          'KnowledgeService',
+          'LeadConverter',
+          'LoggingService',
+          'MetadataService',
+          'MockFactory',
+          'NotificationService',
+          'NumberUtils',
+          'OpportunityService',
+          'OrderProcessor',
+        ])
+          IndexedClass(DeclarationName(name)),
+      ];
 
-        final completionList = await complete(
-          extractCursorPosition('N{cursor}'),
-          index: types,
-        );
+      final completionList = await complete(
+        extractCursorPosition('N{cursor}'),
+        index: types,
+      );
 
-        expect(completionList.items, hasLength(2));
-        expect(
-          completionList.items.map((item) => item.label).toList(),
-          containsAll(['NotificationService', 'NumberUtils']),
-        );
-      },
-    );
+      expect(completionList.items, hasLength(2));
+      expect(
+        completionList.items.map((item) => item.label).toList(),
+        containsAll(['NotificationService', 'NumberUtils']),
+      );
+    });
 
-    test(
-      'returns isIncomplete true on empty prefix with many types so '
-      'client re-requests on each keystroke',
-      () async {
-        final types = List.generate(
-          30,
-          (i) => IndexedClass(DeclarationName('Class$i')),
-        );
+    test('returns isIncomplete true on empty prefix with many types so '
+        'client re-requests on each keystroke', () async {
+      final types = List.generate(
+        30,
+        (i) => IndexedClass(DeclarationName('Class$i')),
+      );
 
-        // Empty prefix: client opens autocomplete popup
-        final initial = await complete(
-          extractCursorPosition('{cursor}'),
-          index: types,
-        );
-        // Must be incomplete so client doesn't cache and filter locally
-        expect(initial.isIncomplete, isTrue);
+      // Empty prefix: client opens autocomplete popup
+      final initial = await complete(
+        extractCursorPosition('{cursor}'),
+        index: types,
+      );
+      // Must be incomplete so client doesn't cache and filter locally
+      expect(initial.isIncomplete, isTrue);
 
-        // User types "Class2" — only 11 match (Class2, Class20..Class29)
-        final filtered = await complete(
-          extractCursorPosition('Class2{cursor}'),
-          index: types,
-        );
-        expect(filtered.isIncomplete, isFalse);
-        expect(filtered.items, hasLength(11));
-        expect(
-          filtered.items.map((item) => item.label),
-          contains('Class29'),
-        );
-      },
-    );
+      // User types "Class2" — only 11 match (Class2, Class20..Class29)
+      final filtered = await complete(
+        extractCursorPosition('Class2{cursor}'),
+        index: types,
+      );
+      expect(filtered.isIncomplete, isFalse);
+      expect(filtered.items, hasLength(11));
+      expect(filtered.items.map((item) => item.label), contains('Class29'));
+    });
 
     test(
       'marks list as incomplete when filtered results exceed max items',
@@ -949,7 +931,9 @@ void main() {
         // 30 types all starting with "Type" — more than maxCompletionItems
         final types = List.generate(
           30,
-          (i) => IndexedClass(DeclarationName('Type${i.toString().padLeft(2, '0')}')),
+          (i) => IndexedClass(
+            DeclarationName('Type${i.toString().padLeft(2, '0')}'),
+          ),
         );
 
         final completionList = await complete(
@@ -962,35 +946,31 @@ void main() {
       },
     );
 
-    test(
-      'narrows results when prefix becomes more specific',
-      () async {
-        // 30 types all starting with "Type"
-        final types = List.generate(
-          30,
-          (i) => IndexedClass(DeclarationName('Type${i.toString().padLeft(2, '0')}')),
-        );
+    test('narrows results when prefix becomes more specific', () async {
+      // 30 types all starting with "Type"
+      final types = List.generate(
+        30,
+        (i) => IndexedClass(
+          DeclarationName('Type${i.toString().padLeft(2, '0')}'),
+        ),
+      );
 
-        // Broad prefix: "Type" matches all 30, returns 25 (incomplete)
-        final broad = await complete(
-          extractCursorPosition('Type{cursor}'),
-          index: types,
-        );
-        expect(broad.isIncomplete, isTrue);
+      // Broad prefix: "Type" matches all 30, returns 25 (incomplete)
+      final broad = await complete(
+        extractCursorPosition('Type{cursor}'),
+        index: types,
+      );
+      expect(broad.isIncomplete, isTrue);
 
-        // Specific prefix: "Type2" matches Type20-Type29 (10 items)
-        final specific = await complete(
-          extractCursorPosition('Type2{cursor}'),
-          index: types,
-        );
-        expect(specific.isIncomplete, isFalse);
-        expect(specific.items, hasLength(10));
-        expect(
-          specific.items.map((item) => item.label),
-          contains('Type29'),
-        );
-      },
-    );
+      // Specific prefix: "Type2" matches Type20-Type29 (10 items)
+      final specific = await complete(
+        extractCursorPosition('Type2{cursor}'),
+        index: types,
+      );
+      expect(specific.isIncomplete, isFalse);
+      expect(specific.items, hasLength(10));
+      expect(specific.items.map((item) => item.label), contains('Type29'));
+    });
 
     test('autocomplete instance class methods', () async {
       final classType = IndexedClass(
@@ -1045,8 +1025,266 @@ void main() {
       );
 
       expect(completionList.items, hasLength(2));
-      expect(completionList.items, contains(CompletionItem(label: 'variables')));
-      expect(completionList.items, contains(CompletionItem(label: 'define')));
+      expect(completionList, containsCompletion('variables'));
+      expect(completionList, containsCompletion('define'));
+    });
+  });
+
+  group('completion item kind', () {
+    test('class completions have classKind', () async {
+      final classType = IndexedClass(DeclarationName('Account'));
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [classType],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('Account', CompletionItemKind.classKind),
+      );
+    });
+
+    test('interface completions have interfaceKind', () async {
+      final interfaceType = IndexedInterface(
+        DeclarationName('Greeter'),
+        methods: [],
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [interfaceType],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('Greeter', CompletionItemKind.interfaceKind),
+      );
+    });
+
+    test('enum completions have enumKind', () async {
+      final enumType = IndexedEnum(DeclarationName('Season'), values: []);
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [enumType],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('Season', CompletionItemKind.enumKind),
+      );
+    });
+
+    test('variable completions have variable kind', () async {
+      final variable = IndexedVariable(
+        DeclarationName('myVar'),
+        typeName: DeclarationName('String'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [variable],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('myVar', CompletionItemKind.variable),
+      );
+    });
+
+    test('field member completions have field kind', () async {
+      final classType = IndexedClass(
+        DeclarationName('Foo'),
+        members: [FieldMember(DeclarationName('bar'), isStatic: false)],
+      );
+      final localVariable = IndexedVariable(
+        DeclarationName('myFoo'),
+        typeName: DeclarationName('Foo'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('myFoo.{cursor}'),
+        index: [classType, localVariable],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('bar', CompletionItemKind.field),
+      );
+    });
+
+    test('method member completions have method kind', () async {
+      final classType = IndexedClass(
+        DeclarationName('Foo'),
+        members: [
+          MethodDeclaration(
+            DeclarationName('doWork'),
+            body: Block.empty(),
+            isStatic: false,
+          ),
+        ],
+      );
+      final localVariable = IndexedVariable(
+        DeclarationName('myFoo'),
+        typeName: DeclarationName('Foo'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('myFoo.{cursor}'),
+        index: [classType, localVariable],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('doWork', CompletionItemKind.method),
+      );
+    });
+
+    test('enum value completions have enumMember kind', () async {
+      final enumType = IndexedEnum(
+        DeclarationName('Season'),
+        values: ['SPRING'.enumValueMember()],
+      );
+      final completionList = await complete(
+        extractCursorPosition('Season.{cursor}'),
+        index: [enumType],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('SPRING', CompletionItemKind.enumMember),
+      );
+    });
+
+    test('top-level field completions have field kind', () async {
+      final field = FieldMember(DeclarationName('myField'), isStatic: false);
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [field],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('myField', CompletionItemKind.field),
+      );
+    });
+
+    test('top-level method completions have method kind', () async {
+      final method = MethodDeclaration(
+        DeclarationName('myMethod'),
+        body: Block.empty(),
+        isStatic: false,
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [method],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('myMethod', CompletionItemKind.method),
+      );
+    });
+  });
+
+  group('completion item detail', () {
+    test('class completions have "Class" detail', () async {
+      final classType = IndexedClass(DeclarationName('Account'));
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [classType],
+      );
+
+      expect(completionList, completionWithDetail('Account', 'Class'));
+    });
+
+    test('class with superclass shows "extends" detail', () async {
+      final classType = IndexedClass(
+        DeclarationName('SavingsAccount'),
+        superClass: 'Account',
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [classType],
+      );
+
+      expect(
+        completionList,
+        completionWithDetail('SavingsAccount', 'extends Account'),
+      );
+    });
+
+    test('interface completions have "Interface" detail', () async {
+      final interfaceType = IndexedInterface(
+        DeclarationName('Greeter'),
+        methods: [],
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [interfaceType],
+      );
+
+      expect(completionList, completionWithDetail('Greeter', 'Interface'));
+    });
+
+    test('enum completions have "Enum" detail', () async {
+      final enumType = IndexedEnum(DeclarationName('Season'), values: []);
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [enumType],
+      );
+
+      expect(completionList, completionWithDetail('Season', 'Enum'));
+    });
+
+    test('variable completions show type name as detail', () async {
+      final variable = IndexedVariable(
+        DeclarationName('myVar'),
+        typeName: DeclarationName('String'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [variable],
+      );
+
+      expect(completionList, completionWithDetail('myVar', 'String'));
+    });
+
+    test('field member completions show type name as detail', () async {
+      final classType = IndexedClass(
+        DeclarationName('Foo'),
+        members: [
+          FieldMember(
+            DeclarationName('bar'),
+            isStatic: false,
+            typeName: DeclarationName('String'),
+          ),
+        ],
+      );
+      final localVariable = IndexedVariable(
+        DeclarationName('myFoo'),
+        typeName: DeclarationName('Foo'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('myFoo.{cursor}'),
+        index: [classType, localVariable],
+      );
+
+      expect(completionList, completionWithDetail('bar', 'String'));
+    });
+
+    test('enum value completions show parent enum as detail', () async {
+      final enumType = IndexedEnum(
+        DeclarationName('Season'),
+        values: ['SPRING'.enumValueMember()],
+      );
+      final completionList = await complete(
+        extractCursorPosition('Season.{cursor}'),
+        index: [enumType],
+      );
+
+      expect(completionList, completionWithDetail('SPRING', 'Season'));
     });
   });
 }

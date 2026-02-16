@@ -1,6 +1,6 @@
 name: apex_lsp
 description: Apex Language Server Protocol (LSP) server over stdio.
-version: 0.0.7
+version: 0.0.8
 publish_to: none
 
 environment:

@@ -131,7 +131,9 @@ void main() {
         ..createSync(recursive: true);
 
       for (final classFile in classFiles) {
-        classesDir.childFile(classFile.name).writeAsStringSync(classFile.source);
+        classesDir
+            .childFile(classFile.name)
+            .writeAsStringSync(classFile.source);
       }
 
       final indexer = WorkspaceIndexer(
@@ -234,10 +236,7 @@ void main() {
       test('indexes top level classes', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
-            (
-              name: 'Account.cls',
-              source: 'public class Account {}',
-            ),
+            (name: 'Account.cls', source: 'public class Account {}'),
           ],
         );
 
@@ -257,8 +256,7 @@ void main() {
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
         final field = result.members.whereType<FieldMember>().first;
 
         expect(field.name, equals(DeclarationName('bar')));
@@ -268,19 +266,44 @@ void main() {
       test('indexes instance class fields', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
-            (
-              name: 'Foo.cls',
-              source: 'public class Foo { String bar; }',
-            ),
+            (name: 'Foo.cls', source: 'public class Foo { String bar; }'),
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
         final field = result.members.whereType<FieldMember>().first;
 
         expect(field.name, equals(DeclarationName('bar')));
         expect(field.isStatic, isFalse);
+      });
+
+      test('indexes field type name', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (name: 'Foo.cls', source: 'public class Foo { String bar; }'),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.typeName, equals(DeclarationName('String')));
+      });
+
+      test('indexes property type name', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { public String bar { get; set; } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.typeName, equals(DeclarationName('String')));
       });
 
       test('indexes class properties as fields', () async {
@@ -293,8 +316,7 @@ void main() {
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
         final field = result.members.whereType<FieldMember>().first;
 
         expect(field.name, equals(DeclarationName('bar')));
@@ -310,8 +332,7 @@ void main() {
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
         final method = result.members.whereType<MethodDeclaration>().first;
 
         expect(method.name, equals(DeclarationName('doWork')));
@@ -321,15 +342,11 @@ void main() {
       test('indexes instance class methods', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
-            (
-              name: 'Foo.cls',
-              source: 'public class Foo { void doWork() {} }',
-            ),
+            (name: 'Foo.cls', source: 'public class Foo { void doWork() {} }'),
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
         final method = result.members.whereType<MethodDeclaration>().first;
 
         expect(method.name, equals(DeclarationName('doWork')));
@@ -347,10 +364,8 @@ void main() {
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
-        final innerClasses =
-            result.members.whereType<IndexedClass>().toList();
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerClasses = result.members.whereType<IndexedClass>().toList();
 
         expect(innerClasses, hasLength(1));
         expect(innerClasses.first.name, equals(DeclarationName('Bar')));
@@ -368,10 +383,10 @@ void main() {
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
-        final innerInterfaces =
-            result.members.whereType<IndexedInterface>().toList();
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerInterfaces = result.members
+            .whereType<IndexedInterface>()
+            .toList();
 
         expect(innerInterfaces, hasLength(1));
         expect(innerInterfaces.first.name, equals(DeclarationName('Bar')));
@@ -389,10 +404,8 @@ void main() {
           ],
         );
 
-        final result =
-            await repository.getIndexedType('Foo') as IndexedClass;
-        final innerEnums =
-            result.members.whereType<IndexedEnum>().toList();
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerEnums = result.members.whereType<IndexedEnum>().toList();
 
         expect(innerEnums, hasLength(1));
         expect(innerEnums.first.name, equals(DeclarationName('Status')));

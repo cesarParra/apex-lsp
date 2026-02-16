@@ -252,9 +252,14 @@ final class LspClient {
     final rawItems = json['items'] as List<Object?>;
     final items = rawItems.map((raw) {
       final map = raw as Map<String, Object?>;
+      final kindValue = map['kind'] as int?;
       return CompletionItem(
         label: map['label'] as String,
         insertText: map['insertText'] as String?,
+        kind: kindValue != null
+            ? CompletionItemKind.values.firstWhere((k) => k.value == kindValue)
+            : null,
+        detail: map['detail'] as String?,
       );
     }).toList();
     return CompletionList(isIncomplete: isIncomplete, items: items);

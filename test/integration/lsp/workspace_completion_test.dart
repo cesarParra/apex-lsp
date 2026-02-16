@@ -1,5 +1,7 @@
+import 'package:apex_lsp/message.dart';
 import 'package:test/test.dart';
 
+import '../../support/completion_matchers.dart';
 import '../../support/cursor_utils.dart';
 import '../../support/lsp_client.dart';
 import '../../support/lsp_matchers.dart';
@@ -137,25 +139,24 @@ void main() {
       expect(completions, containsCompletion('Greeter'));
     });
 
-    test('completes workspace interface methods via variable dot access',
-        () async {
-      final textWithPosition = extractCursorPosition('''
+    test(
+      'completes workspace interface methods via variable dot access',
+      () async {
+        final textWithPosition = extractCursorPosition('''
 Greeter myVar;
 myVar.{cursor}''');
-      final document = Document.withText(textWithPosition.text);
-      await client.openDocument(document);
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
 
-      final completions = await client.completion(
-        uri: document.uri,
-        line: textWithPosition.position.line,
-        character: textWithPosition.position.character,
-      );
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
 
-      expect(
-        completions,
-        containsCompletions(['greet', 'sayGoodbye']),
-      );
-    });
+        expect(completions, containsCompletions(['greet', 'sayGoodbye']));
+      },
+    );
   });
 
   group('Workspace Completion with indexed classes', () {
@@ -285,8 +286,7 @@ sampleAnimal.{cursor}''');
     });
 
     test('completes inner enum values via qualified access', () async {
-      final textWithPosition =
-          extractCursorPosition('Animal.Status.{cursor}');
+      final textWithPosition = extractCursorPosition('Animal.Status.{cursor}');
       final document = Document.withText(textWithPosition.text);
       await client.openDocument(document);
 
@@ -387,6 +387,175 @@ sample.{cursor}''');
       );
 
       expect(completions, containsCompletion('Class29'));
+    });
+  });
+
+  group('Workspace Completion kind and detail', () {
+    late TestWorkspace workspace;
+    late LspClient client;
+
+    setUp(() async {
+      workspace = await createTestWorkspace(
+        classFiles: [
+          (
+            name: 'Season.cls',
+            source: 'public enum Season { SPRING, SUMMER, FALL, WINTER }',
+          ),
+          (
+            name: 'Greeter.cls',
+            source:
+                'public interface Greeter { String greet(); void sayGoodbye(); }',
+          ),
+          (
+            name: 'Animal.cls',
+            source: '''
+public class Animal {
+  String name;
+  static Integer count;
+  void speak() {}
+}''',
+          ),
+        ],
+      );
+      client = createLspClient()..start();
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+    });
+
+    tearDown(() async {
+      await client.dispose();
+      await deleteTestWorkspace(workspace);
+    });
+
+    test('workspace class has classKind and "Class" detail', () async {
+      final textWithPosition = extractCursorPosition('Ani{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWith(
+          label: 'Animal',
+          kind: CompletionItemKind.classKind,
+          detail: 'Class',
+        ),
+      );
+    });
+
+    test('workspace enum has enumKind and "Enum" detail', () async {
+      final textWithPosition = extractCursorPosition('Sea{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWith(
+          label: 'Season',
+          kind: CompletionItemKind.enumKind,
+          detail: 'Enum',
+        ),
+      );
+    });
+
+    test(
+      'workspace interface has interfaceKind and "Interface" detail',
+      () async {
+        final textWithPosition = extractCursorPosition('Gre{cursor}');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        expect(
+          completions,
+          completionWith(
+            label: 'Greeter',
+            kind: CompletionItemKind.interfaceKind,
+            detail: 'Interface',
+          ),
+        );
+      },
+    );
+
+    test('workspace enum values have enumMember kind', () async {
+      final textWithPosition = extractCursorPosition('Season.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWith(
+          label: 'SPRING',
+          kind: CompletionItemKind.enumMember,
+          detail: 'Season',
+        ),
+      );
+    });
+
+    test('workspace instance field has field kind and type detail', () async {
+      final textWithPosition = extractCursorPosition('''
+Animal a;
+a.{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWith(
+          label: 'name',
+          kind: CompletionItemKind.field,
+          detail: 'String',
+        ),
+      );
+    });
+
+    test('workspace instance method has method kind', () async {
+      final textWithPosition = extractCursorPosition('''
+Animal a;
+a.{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWithKind('speak', CompletionItemKind.method),
+      );
     });
   });
 }
