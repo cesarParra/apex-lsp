@@ -9,9 +9,9 @@ import 'package:apex_lsp/type_name.dart';
 
 /// Base class for all completion candidates.
 ///
-/// A completion candidate represents a potential code completion suggestion
-/// that can be shown to the user. Candidates are filtered and ranked based
-/// on the completion context and user input.
+/// Thin wrappers around [Declaration] that categorize how a declaration
+/// should be presented as a completion suggestion. The [Declaration] itself
+/// is the source of truth for all data (name, type info, etc.).
 ///
 /// See also:
 ///  * [ApexTypeCandidate], for type-level completions.
@@ -25,14 +25,8 @@ sealed class CompletionCandidate {
 ///
 /// Represents completions for classes, enums, and interfaces that can
 /// appear in type positions or as standalone references.
-///
-/// Example:
-/// ```dart
-/// final candidate = ApexTypeCandidate(Local(name: TypeName('Account')));
-/// print(candidate.name); // 'Account'
-/// ```
 final class ApexTypeCandidate extends CompletionCandidate {
-  final ApexType type;
+  final IndexedType type;
 
   ApexTypeCandidate(this.type);
 
@@ -43,121 +37,28 @@ final class ApexTypeCandidate extends CompletionCandidate {
 /// Completion candidate for a type member.
 ///
 /// Represents completions that appear after a dot operator, such as
-/// instance methods, static methods, or enum values.
-///
-/// Example:
-/// ```dart
-/// final member = Member(
-///   name: TypeName('getName'),
-///   parentType: Local(name: TypeName('Account')),
-///   type: MemberType.instance,
-/// );
-/// final candidate = MemberCandidate(member);
-/// ```
+/// instance methods, static methods, fields, or enum values.
 final class MemberCandidate extends CompletionCandidate {
-  final Member member;
+  final Declaration declaration;
+  final IndexedType? parentType;
 
-  MemberCandidate(this.member);
+  MemberCandidate(this.declaration, {this.parentType});
 
   @override
-  String get name => member.name.value;
-}
-
-/// Indicates whether a member is static or instance-level.
-enum MemberType { static, instance }
-
-/// Represents a type member with its parent type and access type.
-///
-/// Used to track completions for fields, methods, and enum values along
-/// with their containing type and whether they are static or instance members.
-final class Member {
-  final DeclarationName name;
-  final ApexType parentType;
-  final MemberType type;
-  final Declaration declaration;
-
-  Member({
-    required this.name,
-    required this.parentType,
-    required this.type,
-    required this.declaration,
-  });
+  String get name => declaration.name.value;
 }
 
 /// Completion candidate for a locally declared variable.
 ///
 /// Represents variables, method parameters, and loop variables that are
-/// accessible at the current cursor position. This is particularly common
-/// in anonymous Apex blocks where variables are declared at the file level.
-///
-/// Example:
-/// ```dart
-/// final candidate = LocalVariableCandidate('accountName');
-/// print(candidate.name); // 'accountName'
-/// ```
+/// accessible at the current cursor position.
 final class LocalVariableCandidate extends CompletionCandidate {
-  final String _name;
-  final String? typeName;
+  final IndexedVariable variable;
 
-  LocalVariableCandidate(String name, {this.typeName}) : _name = name;
+  LocalVariableCandidate(this.variable);
 
   @override
-  String get name => _name;
-}
-
-/// Base class for Apex type sources.
-///
-/// Tracks where a type is defined relative to the current file being edited.
-/// This distinction is important for understanding scope and accessibility.
-///
-/// See also:
-///  * [Indexed], for types in other workspace files.
-///  * [Local], for types in the current file.
-///  * [Self], for the type currently being edited.
-sealed class ApexType {
-  final DeclarationName name;
-  final IndexedType? indexedType;
-
-  ApexType({required this.name, this.indexedType});
-}
-
-/// An Apex type defined in the workspace index.
-///
-/// Represents classes, enums, and interfaces that exist in other files
-/// within the workspace and have been indexed by [ApexIndexer].
-final class Indexed extends ApexType {
-  Indexed({required super.name, super.indexedType});
-}
-
-/// An Apex type defined locally in the current file.
-///
-/// Represents types declared in the same file being edited, such as
-/// inner classes or types in anonymous Apex blocks.
-final class Local extends ApexType {
-  Local({required super.name, super.indexedType});
-}
-
-/// The Apex type currently being edited.
-///
-/// Represents the primary type definition in the current file, allowing
-/// for self-referential completions like accessing own members.
-final class Self extends ApexType {
-  Self({required super.name, super.indexedType});
-}
-
-/// Interface for completion suggestion providers.
-///
-/// Implementations provide completion candidates based on the completion
-/// context, which includes cursor position and surrounding code.
-abstract interface class CompletionSuggestion {
-  /// Generates completion candidates for the given context.
-  ///
-  /// - [context]: The completion context including prefix and position.
-  ///
-  /// Returns a list of completion candidates appropriate for the context.
-  FutureOr<List<CompletionCandidate>> suggest({
-    required CompletionContext context,
-  });
+  String get name => variable.name.value;
 }
 
 /// Maximum number of completion items to return to the client.
@@ -169,10 +70,11 @@ const maxCompletionItems = 25;
 CompletionItem _toCompletionItem(CompletionCandidate candidate) {
   final (kind, detail) = switch (candidate) {
     ApexTypeCandidate(:final type) => _typeKindAndDetail(type),
-    MemberCandidate(:final member) => _memberKindAndDetail(member),
-    LocalVariableCandidate(:final typeName) => (
+    MemberCandidate(:final declaration, :final parentType) =>
+      _memberKindAndDetail(declaration, parentType: parentType),
+    LocalVariableCandidate(:final variable) => (
       CompletionItemKind.variable,
-      typeName,
+      variable.typeName.value as String?,
     ),
   };
 
@@ -184,34 +86,29 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
   );
 }
 
-(CompletionItemKind, String?) _typeKindAndDetail(ApexType type) =>
-    switch (type.indexedType) {
+(CompletionItemKind, String?) _typeKindAndDetail(IndexedType type) =>
+    switch (type) {
       IndexedClass(:final superClass) => (
         CompletionItemKind.classKind,
         superClass != null ? 'extends $superClass' : 'Class',
       ),
       IndexedInterface() => (CompletionItemKind.interfaceKind, 'Interface'),
       IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
-      null => (CompletionItemKind.classKind, null),
     };
 
-(CompletionItemKind, String?) _memberKindAndDetail(Member member) =>
-    switch (member.declaration) {
-      FieldMember(:final typeName) => (
-        CompletionItemKind.field,
-        typeName?.value,
-      ),
-      MethodDeclaration() => (CompletionItemKind.method, null),
-      EnumValueMember() => (
-        CompletionItemKind.enumMember,
-        member.parentType.name.value,
-      ),
-      IndexedClass() => (CompletionItemKind.classKind, 'Class'),
-      IndexedInterface() => (CompletionItemKind.interfaceKind, 'Interface'),
-      IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
-      IndexedVariable() ||
-      ConstructorDeclaration() => (CompletionItemKind.variable, null),
-    };
+(CompletionItemKind, String?) _memberKindAndDetail(
+  Declaration declaration, {
+  IndexedType? parentType,
+}) => switch (declaration) {
+  FieldMember(:final typeName) => (CompletionItemKind.field, typeName?.value),
+  MethodDeclaration() => (CompletionItemKind.method, null),
+  EnumValueMember() => (CompletionItemKind.enumMember, parentType?.name.value),
+  IndexedClass() => (CompletionItemKind.classKind, 'Class'),
+  IndexedInterface() => (CompletionItemKind.interfaceKind, 'Interface'),
+  IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
+  IndexedVariable() ||
+  ConstructorDeclaration() => (CompletionItemKind.variable, null),
+};
 
 /// Handles a Language Server Protocol completion request.
 ///
@@ -293,22 +190,13 @@ Future<CompletionList> onCompletion({
         .where((declaration) => declaration.isVisibleAt(cursorOffset))
         .map(
           (declaration) => switch (declaration) {
-            IndexedType() => ApexTypeCandidate(
-              Local(name: declaration.name, indexedType: declaration),
-            ),
-            IndexedVariable() => LocalVariableCandidate(
-              declaration.name.value,
-              typeName: declaration.typeName.value,
-            ),
+            IndexedType() => ApexTypeCandidate(declaration),
+            IndexedVariable() => LocalVariableCandidate(declaration),
             FieldMember() ||
             MethodDeclaration() ||
             EnumValueMember() => MemberCandidate(
-              Member(
-                name: declaration.name,
-                parentType: Self(name: declaration.name),
-                type: MemberType.instance,
-                declaration: declaration,
-              ),
+              declaration,
+              parentType: expandedIndex.enclosingAt<IndexedType>(cursorOffset),
             ),
             ConstructorDeclaration() => throw UnsupportedError(
               'Autocompleting constructors is not supported at the moment',
@@ -344,75 +232,22 @@ Future<CompletionList> onCompletion({
         ) ??
         resolveQualified(typeName);
 
-    MemberType getMemberType(Declaration declaration) => switch (declaration) {
-      FieldMember(:final isStatic) ||
-      MethodDeclaration(:final isStatic) => isStatic ? .static : .instance,
-
-      EnumValueMember() ||
-      IndexedClass() ||
-      IndexedInterface() ||
-      IndexedEnum() => .static,
-
-      IndexedVariable() || ConstructorDeclaration() => .instance,
-    };
+    final isStaticAccess = memberContext.objectName == memberContext.typeName;
 
     return switch (indexedType) {
       null => <CompletionCandidate>[],
       IndexedClass() =>
         indexedType.members
-            .map(
-              (value) => MemberCandidate(
-                Member(
-                  name: value.name,
-                  parentType: Local(
-                    name: indexedType.name,
-                    indexedType: indexedType,
-                  ),
-                  type: getMemberType(value),
-                  declaration: value,
-                ),
-              ),
-            )
-            .where((candidate) {
-              final targetMemberType =
-                  memberContext.objectName == memberContext.typeName
-                  ? MemberType.static
-                  : MemberType.instance;
-
-              return candidate.member.type == targetMemberType;
-            })
+            .where((member) => isStaticAccess == _isStaticDeclaration(member))
+            .map((member) => MemberCandidate(member, parentType: indexedType))
             .toList(),
       IndexedInterface() =>
         indexedType.methods
-            .map(
-              (method) => MemberCandidate(
-                Member(
-                  name: method.name,
-                  parentType: Local(
-                    name: indexedType.name,
-                    indexedType: indexedType,
-                  ),
-                  type: MemberType.instance,
-                  declaration: method,
-                ),
-              ),
-            )
+            .map((method) => MemberCandidate(method, parentType: indexedType))
             .toList(),
       IndexedEnum() =>
         indexedType.values
-            .map(
-              (value) => MemberCandidate(
-                Member(
-                  name: value.name,
-                  parentType: Local(
-                    name: indexedType.name,
-                    indexedType: indexedType,
-                  ),
-                  type: MemberType.static,
-                  declaration: value,
-                ),
-              ),
-            )
+            .map((value) => MemberCandidate(value, parentType: indexedType))
             .toList(),
     };
   }
@@ -510,7 +345,7 @@ int _offsetAtPosition({
 /// Example:
 /// ```dart
 /// final context = CompletionContextTopLevel(prefix: 'Acc');
-/// final candidate = ApexTypeCandidate(Local(name: TypeName('Account')));
+/// final candidate = ApexTypeCandidate(IndexedClass(DeclarationName('Account')));
 /// print(potentiallyMatches(context, candidate)); // true
 /// ```
 bool potentiallyMatches(
@@ -520,7 +355,9 @@ bool potentiallyMatches(
   bool candidateNameStartsWith(String prefix) {
     return switch (candidate) {
       ApexTypeCandidate(:final type) => type.name.startsWith(prefix),
-      MemberCandidate(:final member) => member.name.startsWith(prefix),
+      MemberCandidate(:final declaration) => declaration.name.startsWith(
+        prefix,
+      ),
       LocalVariableCandidate(:final name) => name.startsWithIgnoreCase(prefix),
     };
   }
@@ -531,6 +368,13 @@ bool potentiallyMatches(
     CompletionContextMember(:final prefix) => candidateNameStartsWith(prefix),
   };
 }
+
+bool _isStaticDeclaration(Declaration declaration) => switch (declaration) {
+  FieldMember(:final isStatic) ||
+  MethodDeclaration(:final isStatic) => isStatic,
+  EnumValueMember() || IndexedType() || ConstructorDeclaration() => true,
+  IndexedVariable() => false,
+};
 
 List<Declaration> _getBodyDeclarations(Declaration? declaration) {
   return switch (declaration) {

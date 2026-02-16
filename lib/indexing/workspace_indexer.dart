@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/message.dart';
@@ -515,55 +514,6 @@ final class IndexRepository {
       _ => null,
     };
   }
-}
-
-Future<List<String>> getMemberNamesByType(
-  IndexedType source,
-  MemberType type,
-) async {
-  List<String> enumMembers(IndexedEnum sourceEnum) {
-    return switch (type) {
-      .static =>
-        sourceEnum.values.map((current) => current.name.value).toList(),
-      .instance => [],
-    };
-  }
-
-  List<String> interfaceMembers(IndexedInterface sourceInterface) {
-    return switch (type) {
-      .static => [],
-      .instance =>
-        sourceInterface.methods.map((current) => current.name.value).toList(),
-    };
-  }
-
-  bool isStaticDeclaration(Declaration declaration) => switch (declaration) {
-    FieldMember(:final isStatic) => isStatic,
-    MethodDeclaration(:final isStatic) => isStatic,
-    EnumValueMember() || IndexedType() || ConstructorDeclaration() => true,
-    IndexedVariable() => false,
-  };
-
-  List<String> classMembers(IndexedClass sourceClass) {
-    return switch (type) {
-      .static =>
-        sourceClass.members
-            .where(isStaticDeclaration)
-            .map((declaration) => declaration.name.value)
-            .toList(),
-      .instance =>
-        sourceClass.members
-            .where((declaration) => !isStaticDeclaration(declaration))
-            .map((declaration) => declaration.name.value)
-            .toList(),
-    };
-  }
-
-  return switch (source) {
-    IndexedEnum() => enumMembers(source),
-    IndexedInterface() => interfaceMembers(source),
-    IndexedClass() => classMembers(source),
-  };
 }
 
 extension on apex_reflection.MemberModifiersAwareness {

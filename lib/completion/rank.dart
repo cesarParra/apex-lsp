@@ -33,9 +33,9 @@ typedef Rank =
 /// Example:
 /// ```dart
 /// final candidates = [
-///   ApexTypeCandidate(Local(name: TypeName('Account'))),
-///   ApexTypeCandidate(Local(name: TypeName('Accordion'))),
-///   ApexTypeCandidate(Local(name: TypeName('Contact'))),
+///   ApexTypeCandidate(IndexedClass(DeclarationName('Account'))),
+///   ApexTypeCandidate(IndexedClass(DeclarationName('Accordion'))),
+///   ApexTypeCandidate(IndexedClass(DeclarationName('Contact'))),
 /// ];
 /// final ranked = rankCandidates(candidates, 'Acc');
 /// // Returns: [Account, Accordion, Contact]
