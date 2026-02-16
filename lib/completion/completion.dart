@@ -74,8 +74,14 @@ final class Member {
   final DeclarationName name;
   final ApexType parentType;
   final MemberType type;
+  final Declaration declaration;
 
-  Member({required this.name, required this.parentType, required this.type});
+  Member({
+    required this.name,
+    required this.parentType,
+    required this.type,
+    required this.declaration,
+  });
 }
 
 /// Completion candidate for a locally declared variable.
@@ -91,8 +97,9 @@ final class Member {
 /// ```
 final class LocalVariableCandidate extends CompletionCandidate {
   final String _name;
+  final String? typeName;
 
-  LocalVariableCandidate(String name) : _name = name;
+  LocalVariableCandidate(String name, {this.typeName}) : _name = name;
 
   @override
   String get name => _name;
@@ -109,8 +116,9 @@ final class LocalVariableCandidate extends CompletionCandidate {
 ///  * [Self], for the type currently being edited.
 sealed class ApexType {
   final DeclarationName name;
+  final IndexedType? indexedType;
 
-  ApexType({required this.name});
+  ApexType({required this.name, this.indexedType});
 }
 
 /// An Apex type defined in the workspace index.
@@ -118,7 +126,7 @@ sealed class ApexType {
 /// Represents classes, enums, and interfaces that exist in other files
 /// within the workspace and have been indexed by [ApexIndexer].
 final class Indexed extends ApexType {
-  Indexed({required super.name});
+  Indexed({required super.name, super.indexedType});
 }
 
 /// An Apex type defined locally in the current file.
@@ -126,7 +134,7 @@ final class Indexed extends ApexType {
 /// Represents types declared in the same file being edited, such as
 /// inner classes or types in anonymous Apex blocks.
 final class Local extends ApexType {
-  Local({required super.name});
+  Local({required super.name, super.indexedType});
 }
 
 /// The Apex type currently being edited.
@@ -134,7 +142,7 @@ final class Local extends ApexType {
 /// Represents the primary type definition in the current file, allowing
 /// for self-referential completions like accessing own members.
 final class Self extends ApexType {
-  Self({required super.name});
+  Self({required super.name, super.indexedType});
 }
 
 /// Interface for completion suggestion providers.
@@ -157,6 +165,53 @@ abstract interface class CompletionSuggestion {
 /// When more candidates are available, the list is marked as incomplete,
 /// prompting the client to request more specific completions as the user types.
 const maxCompletionItems = 25;
+
+CompletionItem _toCompletionItem(CompletionCandidate candidate) {
+  final (kind, detail) = switch (candidate) {
+    ApexTypeCandidate(:final type) => _typeKindAndDetail(type),
+    MemberCandidate(:final member) => _memberKindAndDetail(member),
+    LocalVariableCandidate(:final typeName) => (
+      CompletionItemKind.variable,
+      typeName,
+    ),
+  };
+
+  return CompletionItem(
+    label: candidate.name,
+    insertText: candidate.name,
+    kind: kind,
+    detail: detail,
+  );
+}
+
+(CompletionItemKind, String?) _typeKindAndDetail(ApexType type) =>
+    switch (type.indexedType) {
+      IndexedClass(:final superClass) => (
+        CompletionItemKind.classKind,
+        superClass != null ? 'extends $superClass' : 'Class',
+      ),
+      IndexedInterface() => (CompletionItemKind.interfaceKind, 'Interface'),
+      IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
+      null => (CompletionItemKind.classKind, null),
+    };
+
+(CompletionItemKind, String?) _memberKindAndDetail(Member member) =>
+    switch (member.declaration) {
+      FieldMember(:final typeName) => (
+        CompletionItemKind.field,
+        typeName?.value,
+      ),
+      MethodDeclaration() => (CompletionItemKind.method, null),
+      EnumValueMember() => (
+        CompletionItemKind.enumMember,
+        member.parentType.name.value,
+      ),
+      IndexedClass() => (CompletionItemKind.classKind, 'Class'),
+      IndexedInterface() => (CompletionItemKind.interfaceKind, 'Interface'),
+      IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
+      IndexedVariable() ||
+      ConstructorDeclaration() => (CompletionItemKind.variable, null),
+    };
 
 /// Handles a Language Server Protocol completion request.
 ///
@@ -238,13 +293,23 @@ Future<CompletionList> onCompletion({
         .where((declaration) => declaration.isVisibleAt(cursorOffset))
         .map(
           (declaration) => switch (declaration) {
-            IndexedType() => ApexTypeCandidate(Local(name: declaration.name)),
-            IndexedVariable() => LocalVariableCandidate(declaration.name.value),
-            FieldMember() => LocalVariableCandidate(declaration.name.value),
-            MethodDeclaration() => LocalVariableCandidate(
-              declaration.name.value,
+            IndexedType() => ApexTypeCandidate(
+              Local(name: declaration.name, indexedType: declaration),
             ),
-            EnumValueMember() => LocalVariableCandidate(declaration.name.value),
+            IndexedVariable() => LocalVariableCandidate(
+              declaration.name.value,
+              typeName: declaration.typeName.value,
+            ),
+            FieldMember() ||
+            MethodDeclaration() ||
+            EnumValueMember() => MemberCandidate(
+              Member(
+                name: declaration.name,
+                parentType: Self(name: declaration.name),
+                type: MemberType.instance,
+                declaration: declaration,
+              ),
+            ),
             ConstructorDeclaration() => throw UnsupportedError(
               'Autocompleting constructors is not supported at the moment',
             ),
@@ -299,8 +364,12 @@ Future<CompletionList> onCompletion({
               (value) => MemberCandidate(
                 Member(
                   name: value.name,
-                  parentType: Local(name: indexedType.name),
+                  parentType: Local(
+                    name: indexedType.name,
+                    indexedType: indexedType,
+                  ),
                   type: getMemberType(value),
+                  declaration: value,
                 ),
               ),
             )
@@ -319,8 +388,12 @@ Future<CompletionList> onCompletion({
               (method) => MemberCandidate(
                 Member(
                   name: method.name,
-                  parentType: Local(name: indexedType.name),
+                  parentType: Local(
+                    name: indexedType.name,
+                    indexedType: indexedType,
+                  ),
                   type: MemberType.instance,
+                  declaration: method,
                 ),
               ),
             )
@@ -331,8 +404,12 @@ Future<CompletionList> onCompletion({
               (value) => MemberCandidate(
                 Member(
                   name: value.name,
-                  parentType: Local(name: indexedType.name),
+                  parentType: Local(
+                    name: indexedType.name,
+                    indexedType: indexedType,
+                  ),
                   type: MemberType.static,
+                  declaration: value,
                 ),
               ),
             )
@@ -349,22 +426,19 @@ Future<CompletionList> onCompletion({
 
   log?.call('Total candidates before filtering: ${candidates.length}');
 
-  final filteredCandidates = candidates.where(
-    (candidate) => potentiallyMatches(context, candidate),
-  ).toList();
+  final filteredCandidates = candidates
+      .where((candidate) => potentiallyMatches(context, candidate))
+      .toList();
 
   log?.call(
     'After prefix filter: ${filteredCandidates.length} '
     '(prefix="${context.prefix}")',
   );
 
-  final rankedItems = rankCandidates(filteredCandidates, prefix)
-      .take(maxCompletionItems)
-      .map(
-        (candidate) =>
-            CompletionItem(label: candidate.name, insertText: candidate.name),
-      )
-      .toList();
+  final rankedItems = rankCandidates(
+    filteredCandidates,
+    prefix,
+  ).take(maxCompletionItems).map(_toCompletionItem).toList();
 
   final isIncomplete = filteredCandidates.length > maxCompletionItems;
 
@@ -374,10 +448,7 @@ Future<CompletionList> onCompletion({
     '${rankedItems.isNotEmpty ? ' first=${rankedItems.first.label}' : ''}',
   );
 
-  return CompletionList(
-    isIncomplete: isIncomplete,
-    items: rankedItems,
-  );
+  return CompletionList(isIncomplete: isIncomplete, items: rankedItems);
 }
 
 /// Converts a line and character position to a byte offset within the text.

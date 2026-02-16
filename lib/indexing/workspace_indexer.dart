@@ -383,18 +383,13 @@ final class IndexRepository {
       return {};
     }
 
-    final allFiles = indexDir.listSync(
-      recursive: false,
-      followLinks: false,
-    );
-    final jsonFiles =
-        allFiles.whereType<File>().where(
-          (f) => f.path.toLowerCase().endsWith('.json'),
-        ).toList();
+    final allFiles = indexDir.listSync(recursive: false, followLinks: false);
+    final jsonFiles = allFiles
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.json'))
+        .toList();
 
-    _log?.call(
-      'Found ${jsonFiles.length} JSON files in ${indexDir.path}',
-    );
+    _log?.call('Found ${jsonFiles.length} JSON files in ${indexDir.path}');
 
     Map<String, IndexedType> indexedTypesByName = {};
     for (final file in jsonFiles) {
@@ -409,8 +404,9 @@ final class IndexRepository {
         final indexedType = _parseIndexedType(decoded);
         if (indexedType == null) {
           final typeName = decoded is Map ? decoded['typeMirror'] : null;
-          final typeNameValue =
-              typeName is Map ? typeName['type_name'] : 'unknown';
+          final typeNameValue = typeName is Map
+              ? typeName['type_name']
+              : 'unknown';
           _log?.call(
             'SKIPPED ${file.path}: '
             '_parseIndexedType returned null '
@@ -484,12 +480,14 @@ final class IndexRepository {
             (field) => FieldMember(
               DeclarationName(field.name),
               isStatic: field.isStatic,
+              typeName: DeclarationName(field.typeReference.type),
             ),
           ),
           ...mirror.properties.map(
             (property) => FieldMember(
               DeclarationName(property.name),
               isStatic: property.isStatic,
+              typeName: DeclarationName(property.typeReference.type),
             ),
           ),
           ...mirror.methods.map(

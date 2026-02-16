@@ -33,6 +33,27 @@ int messageTypeToJson(MessageType type) => type.code;
 MessageType messageTypeFromJson(int code) =>
     MessageType.values.firstWhere((t) => t.code == code);
 
+/// LSP completion item kinds mapped to their protocol integer values.
+///
+/// Only includes the kinds used by this server. See the LSP specification
+/// for the full list.
+enum CompletionItemKind {
+  method(value: 2),
+  field(value: 5),
+  variable(value: 6),
+  classKind(value: 7),
+  interfaceKind(value: 8),
+  enumKind(value: 13),
+  enumMember(value: 20);
+
+  const CompletionItemKind({required this.value});
+
+  /// The numeric value as defined by the LSP specification.
+  final int value;
+}
+
+int? _completionItemKindToJson(CompletionItemKind? kind) => kind?.value;
+
 // ----------- Incoming requests and notifications-----------------
 // The LSP protocol defines 2 types of incoming messages: requests and notifications.
 
@@ -161,7 +182,7 @@ final class CompletionRequest
 ///   insertText: 'Account',
 /// );
 /// ```
-@JsonSerializable(createFactory: false)
+@JsonSerializable(createFactory: false, includeIfNull: false)
 final class CompletionItem {
   /// The label shown in the completion menu.
   final String label;
@@ -169,14 +190,26 @@ final class CompletionItem {
   /// The text to insert. Defaults to [label] if not specified.
   final String? insertText;
 
-  const CompletionItem({required this.label, String? insertText})
-    : insertText = insertText ?? label;
+  /// The kind of this completion item, used by the editor for icon rendering.
+  @JsonKey(toJson: _completionItemKindToJson)
+  final CompletionItemKind? kind;
+
+  /// A human-readable string with additional information about this item,
+  /// like type or symbol information.
+  final String? detail;
+
+  const CompletionItem({
+    required this.label,
+    String? insertText,
+    this.kind,
+    this.detail,
+  }) : insertText = insertText ?? label;
 
   Map<String, Object?> toJson() => _$CompletionItemToJson(this);
 
   @override
   String toString() {
-    return 'CompletionItem{label: $label, insertText: $insertText}';
+    return 'CompletionItem{label: $label, kind: $kind, detail: $detail}';
   }
 
   @override
@@ -185,10 +218,12 @@ final class CompletionItem {
       other is CompletionItem &&
           runtimeType == other.runtimeType &&
           label == other.label &&
-          insertText == other.insertText;
+          kind == other.kind &&
+          detail == other.detail;
 
   @override
-  int get hashCode => Object.hash(label, insertText);
+  @JsonKey(includeToJson: false)
+  int get hashCode => Object.hash(label, kind, detail);
 }
 
 /// Response to a completion request containing a list of completion items.
