@@ -461,6 +461,15 @@ final class IndexRepository {
                 DeclarationName(method.name),
                 body: Block.empty(),
                 isStatic: method.isStatic,
+                returnType: method.typeReference.rawDeclaration,
+                parameters: method.parameters
+                    .map(
+                      (parameter) => (
+                        type: parameter.typeReference.rawDeclaration,
+                        name: parameter.name,
+                      ),
+                    )
+                    .toList(),
               ),
             )
             .toList(),
@@ -494,6 +503,15 @@ final class IndexRepository {
               DeclarationName(method.name),
               body: Block.empty(),
               isStatic: method.isStatic,
+              returnType: method.typeReference.rawDeclaration,
+              parameters: method.parameters
+                  .map(
+                    (parameter) => (
+                      type: parameter.typeReference.rawDeclaration,
+                      name: parameter.name,
+                    ),
+                  )
+                  .toList(),
             ),
           ),
         ],

@@ -556,6 +556,14 @@ a.{cursor}''');
         completions,
         completionWithKind('speak', CompletionItemKind.method),
       );
+      expect(
+        completions,
+        completionWithLabelDetails(
+          label: 'speak',
+          detail: '()',
+          description: 'void',
+        ),
+      );
     });
   });
 }

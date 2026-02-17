@@ -230,6 +230,32 @@ void main() {
           equals(['greet', 'sayGoodbye']),
         );
       });
+
+      test('captures interface method signatures', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Greeter.cls',
+              source:
+                  'public interface Greeter { String greet(String name); void sayGoodbye(); }',
+            ),
+          ],
+        );
+
+        final result =
+            await repository.getIndexedType('Greeter') as IndexedInterface;
+        final greet = result.methods.firstWhere(
+          (method) => method.name.value == 'greet',
+        );
+        final goodbye = result.methods.firstWhere(
+          (method) => method.name.value == 'sayGoodbye',
+        );
+
+        expect(greet.returnType, 'String');
+        expect(greet.parameters, [(type: 'String', name: 'name')]);
+        expect(goodbye.returnType, 'void');
+        expect(goodbye.parameters, isEmpty);
+      });
     });
 
     group('classes', () {
@@ -337,6 +363,27 @@ void main() {
 
         expect(method.name, equals(DeclarationName('doWork')));
         expect(method.isStatic, isTrue);
+      });
+
+      test('captures class method signatures', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { static Integer doWork(String name, Integer count) { return count; } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final method = result.members.whereType<MethodDeclaration>().first;
+
+        expect(method.returnType, 'Integer');
+        expect(method.parameters, [
+          (type: 'String', name: 'name'),
+          (type: 'Integer', name: 'count'),
+        ]);
       });
 
       test('indexes instance class methods', () async {
