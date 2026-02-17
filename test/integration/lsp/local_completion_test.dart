@@ -750,7 +750,7 @@ a.{cursor}''');
       test('instance method has method kind', () async {
         final textWithPosition = extractCursorPosition('''
 public class Animal {
-  void speak() {}
+  String speak(String sound, Integer times) {}
 }
 Animal a;
 a.{cursor}''');
@@ -766,6 +766,14 @@ a.{cursor}''');
         expect(
           completions,
           completionWithKind('speak', CompletionItemKind.method),
+        );
+        expect(
+          completions,
+          completionWithLabelDetails(
+            label: 'speak',
+            detail: '(String sound, Integer times)',
+            description: 'String',
+          ),
         );
       });
     });

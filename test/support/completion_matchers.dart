@@ -28,3 +28,21 @@ Matcher completionWith({
   'contains completion "$label" with kind $kind'
   '${detail != null ? ' and detail "$detail"' : ''}',
 );
+
+/// Asserts a [CompletionList] contains an item with the given label and
+/// label details.
+Matcher completionWithLabelDetails({
+  required String label,
+  String? detail,
+  String? description,
+}) => predicate<CompletionList>(
+  (list) => list.items.any(
+    (i) =>
+        i.label == label &&
+        i.labelDetails?.detail == detail &&
+        i.labelDetails?.description == description,
+  ),
+  'contains completion "$label" with label details'
+  '${detail != null ? ' "$detail"' : ''}'
+  '${description != null ? ' and description "$description"' : ''}',
+);

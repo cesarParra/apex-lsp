@@ -122,6 +122,24 @@ public Enum Foo { A, B, C };
       expect(method.name.value, 'sampleMethod');
     });
 
+    test('captures return type for void methods', () {
+      final text = 'void sampleMethod() { }';
+
+      final result = indexer.parseAndIndex(text);
+
+      final method = result.first as MethodDeclaration;
+      expect(method.returnType, 'void');
+    });
+
+    test('captures return type for non-void methods', () {
+      final text = 'String getName() { return null; }';
+
+      final result = indexer.parseAndIndex(text);
+
+      final method = result.first as MethodDeclaration;
+      expect(method.returnType, 'String');
+    });
+
     test('indexes a method with a non-void return type', () {
       final text = 'String getName() { return null; }';
 
@@ -154,6 +172,17 @@ public Enum Foo { A, B, C };
   });
 
   group('indexes method parameters', () {
+    test('captures parameters for signature display', () {
+      final text = 'void sampleMethod(String name, Integer count) { }';
+
+      final result = indexer.parseAndIndex(text);
+
+      final methodDeclaration = result.first as MethodDeclaration;
+      expect(methodDeclaration.parameters, hasLength(2));
+      expect(methodDeclaration.parameters[0], (type: 'String', name: 'name'));
+      expect(methodDeclaration.parameters[1], (type: 'Integer', name: 'count'));
+    });
+
     test('indexes a single parameter', () {
       final text = 'void sampleMethod(String name) { }';
 
@@ -487,8 +516,9 @@ public class Foo {
 
       expect(result, hasLength(1));
       final classDeclaration = result.first as IndexedClass;
-      final innerClasses =
-          classDeclaration.members.whereType<IndexedClass>().toList();
+      final innerClasses = classDeclaration.members
+          .whereType<IndexedClass>()
+          .toList();
       expect(innerClasses, hasLength(1));
       expect(innerClasses.first.name.value, 'Bar');
       expect(innerClasses.first.members, hasLength(2));
@@ -509,8 +539,9 @@ public class Foo {
 
       expect(result, hasLength(1));
       final classDeclaration = result.first as IndexedClass;
-      final innerInterfaces =
-          classDeclaration.members.whereType<IndexedInterface>().toList();
+      final innerInterfaces = classDeclaration.members
+          .whereType<IndexedInterface>()
+          .toList();
       expect(innerInterfaces, hasLength(1));
       expect(innerInterfaces.first.name.value, 'Bar');
       expect(innerInterfaces.first.methods, hasLength(2));
@@ -530,8 +561,9 @@ public class Foo {
 
       expect(result, hasLength(1));
       final classDeclaration = result.first as IndexedClass;
-      final innerEnums =
-          classDeclaration.members.whereType<IndexedEnum>().toList();
+      final innerEnums = classDeclaration.members
+          .whereType<IndexedEnum>()
+          .toList();
       expect(innerEnums, hasLength(1));
       expect(innerEnums.first.name.value, 'Bar');
       expect(innerEnums.first.values, hasLength(3));

@@ -2,6 +2,8 @@ import 'package:apex_lsp/type_name.dart';
 
 typedef Location = (int startByte, int endByte);
 
+typedef MethodParameter = ({String type, String name});
+
 sealed class Visibility {
   bool isVisibleAt(int cursorOffset, Location? location);
 }
@@ -110,19 +112,31 @@ final class ConstructorDeclaration extends Declaration {
 final class MethodDeclaration extends Declaration {
   final Block body;
   final bool isStatic;
+  final String? returnType;
+  final List<MethodParameter> parameters;
 
   MethodDeclaration(
     super.name, {
     required this.body,
     required this.isStatic,
+    this.returnType,
+    this.parameters = const [],
     super.location,
   }) : super(visibility: AlwaysVisible());
 
   factory MethodDeclaration.withoutBody(
     DeclarationName name, {
     required bool isStatic,
+    String? returnType,
+    List<MethodParameter> parameters = const [],
   }) {
-    return MethodDeclaration(name, body: Block.empty(), isStatic: isStatic);
+    return MethodDeclaration(
+      name,
+      body: Block.empty(),
+      isStatic: isStatic,
+      returnType: returnType,
+      parameters: parameters,
+    );
   }
 }
 

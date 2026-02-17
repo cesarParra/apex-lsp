@@ -253,6 +253,7 @@ final class LspClient {
     final items = rawItems.map((raw) {
       final map = raw as Map<String, Object?>;
       final kindValue = map['kind'] as int?;
+      final labelDetails = map['labelDetails'] as Map<String, Object?>?;
       return CompletionItem(
         label: map['label'] as String,
         insertText: map['insertText'] as String?,
@@ -260,6 +261,12 @@ final class LspClient {
             ? CompletionItemKind.values.firstWhere((k) => k.value == kindValue)
             : null,
         detail: map['detail'] as String?,
+        labelDetails: labelDetails != null
+            ? CompletionItemLabelDetails(
+                detail: labelDetails['detail'] as String?,
+                description: labelDetails['description'] as String?,
+              )
+            : null,
       );
     }).toList();
     return CompletionList(isIncomplete: isIncomplete, items: items);

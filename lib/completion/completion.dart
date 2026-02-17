@@ -76,11 +76,18 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
     ),
   };
 
+  final labelDetails = switch (candidate) {
+    MemberCandidate(:final declaration) when declaration is MethodDeclaration =>
+      _methodLabelDetails(declaration),
+    _ => null,
+  };
+
   return CompletionItem(
     label: candidate.name,
     insertText: candidate.name,
     kind: kind,
     detail: detail,
+    labelDetails: labelDetails,
   );
 }
 
@@ -107,6 +114,17 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
   IndexedVariable() ||
   ConstructorDeclaration() => (CompletionItemKind.variable, null),
 };
+
+CompletionItemLabelDetails _methodLabelDetails(MethodDeclaration declaration) {
+  final parameters = declaration.parameters
+      .map((parameter) => '${parameter.type} ${parameter.name}')
+      .join(', ');
+
+  return CompletionItemLabelDetails(
+    detail: '($parameters)',
+    description: declaration.returnType,
+  );
+}
 
 /// Handles a Language Server Protocol completion request.
 ///

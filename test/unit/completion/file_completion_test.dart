@@ -143,6 +143,8 @@ void main() {
         DeclarationName('sampleMethod'),
         body: Block.empty(),
         isStatic: false,
+        returnType: 'void',
+        parameters: [(type: 'String', name: 'name')],
         location: (0, 10),
       );
       final completionList = await complete(
@@ -152,6 +154,14 @@ void main() {
 
       expect(completionList.items, hasLength(1));
       expect(completionList.items.first.label, 'sampleMethod');
+      expect(
+        completionList,
+        completionWithLabelDetails(
+          label: 'sampleMethod',
+          detail: '(String name)',
+          description: 'void',
+        ),
+      );
     });
 
     test('autocomplete method names with a prefix', () async {
@@ -159,6 +169,8 @@ void main() {
         DeclarationName('sampleMethod'),
         body: Block.empty(),
         isStatic: false,
+        returnType: 'String',
+        parameters: [(type: 'Integer', name: 'count')],
         location: (0, 10),
       );
       final completionList = await complete(
@@ -168,6 +180,14 @@ void main() {
 
       expect(completionList.items, hasLength(1));
       expect(completionList.items.first.label, 'sampleMethod');
+      expect(
+        completionList,
+        completionWithLabelDetails(
+          label: 'sampleMethod',
+          detail: '(Integer count)',
+          description: 'String',
+        ),
+      );
     });
 
     test('autocompletes methods declared after cursor', () async {

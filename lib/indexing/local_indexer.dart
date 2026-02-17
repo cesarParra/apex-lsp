@@ -7,7 +7,7 @@ import 'package:apex_lsp/type_name.dart';
 import 'package:ffi/ffi.dart';
 
 typedef DeclarationBuilder<T extends Declaration> =
-    T Function(Block, (int, int)?);
+    T Function(Block, (int, int)?, {required List<MethodParameter> parameters});
 
 /// Parses and indexes Apex code in the currently open file using Tree-sitter.
 ///
@@ -209,12 +209,18 @@ class LocalIndexer {
       );
       for (final methodNode in methodNodes) {
         final methodNameNode = _getField(methodNode, 'name');
+        final returnTypeNode = _getField(methodNode, 'type');
+        final parametersNode = _getField(methodNode, 'parameters');
         final name = _nodeText(methodNameNode, bytes);
+        final returnType = _nodeText(returnTypeNode, bytes);
+        final parameters = _extractMethodParameters(parametersNode, bytes);
         if (name.isNotEmpty) {
           methods.add(
             MethodDeclaration.withoutBody(
               DeclarationName(name),
               isStatic: false,
+              returnType: returnType.isEmpty ? null : returnType,
+              parameters: parameters,
             ),
           );
         }
@@ -302,8 +308,12 @@ class LocalIndexer {
           _extractConstructorOrMethod(
             constructorNode,
             bytes,
-            builder: (Block block, (int, int)? location) =>
-                ConstructorDeclaration(body: block, location: location),
+            builder:
+                (
+                  Block block,
+                  (int, int)? location, {
+                  required List<MethodParameter> parameters,
+                }) => ConstructorDeclaration(body: block, location: location),
           ),
         );
       }
@@ -408,6 +418,7 @@ class LocalIndexer {
     final declarations = <Declaration>[];
 
     final parametersNode = _getField(node, 'parameters');
+    final methodParameters = _extractMethodParameters(parametersNode, bytes);
     if (!_isNullNode(parametersNode)) {
       final scopeVisibility = bodyScopeEnd != null
           ? VisibleBetweenDeclarationAndScopeEnd(scopeEnd: bodyScopeEnd)
@@ -446,7 +457,7 @@ class LocalIndexer {
     return builder(Block(declarations: declarations), (
       _bindings.ts_node_start_byte(node),
       _bindings.ts_node_end_byte(node),
-    ));
+    ), parameters: methodParameters);
   }
 
   /// Extracts an enhanced for loop (for-each) with its iteration variable.
@@ -592,20 +603,48 @@ class LocalIndexer {
   ) {
     MethodDeclaration methodDeclarationBuilder(
       Block block,
-      (int, int)? location,
-    ) {
+      (int, int)? location, {
+      required List<MethodParameter> parameters,
+    }) {
       final methodNameNode = _getField(methodNode, 'name');
+      final returnTypeNode = _getField(methodNode, 'type');
       final methodName = _nodeText(methodNameNode, bytes);
+      final returnType = _nodeText(returnTypeNode, bytes);
       final isStatic = _hasStaticModifier(methodNode, bytes);
 
       return MethodDeclaration(
         DeclarationName(methodName),
         isStatic: isStatic,
         body: block,
+        returnType: returnType.isEmpty ? null : returnType,
+        parameters: parameters,
         location: location,
       );
     }
 
     return methodDeclarationBuilder;
+  }
+
+  List<MethodParameter> _extractMethodParameters(
+    TSNode parametersNode,
+    List<int> bytes,
+  ) {
+    if (_isNullNode(parametersNode)) return const [];
+
+    final parameters = <MethodParameter>[];
+    final params = _collectDirectChildrenByType(
+      parametersNode,
+      'formal_parameter',
+    );
+    for (final param in params) {
+      final paramTypeNode = _getField(param, 'type');
+      final paramNameNode = _getField(param, 'name');
+      final paramType = _nodeText(paramTypeNode, bytes);
+      final paramName = _nodeText(paramNameNode, bytes);
+      if (paramName.isEmpty || paramType.isEmpty) continue;
+      parameters.add((type: paramType, name: paramName));
+    }
+
+    return parameters;
   }
 }

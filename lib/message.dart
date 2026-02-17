@@ -183,6 +183,45 @@ final class CompletionRequest
 /// );
 /// ```
 @JsonSerializable(createFactory: false, includeIfNull: false)
+final class CompletionItemLabelDetails {
+  /// Additional information that appears right after the label.
+  /// Typically used for parameter signatures, e.g. `(String name)`.
+  final String? detail;
+
+  /// Additional information shown after [detail], typically the return type.
+  final String? description;
+
+  const CompletionItemLabelDetails({this.detail, this.description});
+
+  @JsonKey(includeToJson: false)
+  @override
+  int get hashCode => Object.hash(detail, description);
+
+  Map<String, Object?> toJson() => _$CompletionItemLabelDetailsToJson(this);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CompletionItemLabelDetails &&
+          runtimeType == other.runtimeType &&
+          detail == other.detail &&
+          description == other.description;
+}
+
+/// A single completion suggestion returned to the client.
+///
+/// Represents one possible completion at the requested position.
+/// The [label] is displayed in the completion menu, while [insertText]
+/// is what gets inserted when the item is selected.
+///
+/// Example:
+/// ```dart
+/// final item = CompletionItem(
+///   label: 'Account',
+///   insertText: 'Account',
+/// );
+/// ```
+@JsonSerializable(createFactory: false, includeIfNull: false)
 final class CompletionItem {
   /// The label shown in the completion menu.
   final String label;
@@ -198,18 +237,22 @@ final class CompletionItem {
   /// like type or symbol information.
   final String? detail;
 
+  /// Additional label details displayed inline by the editor.
+  final CompletionItemLabelDetails? labelDetails;
+
   const CompletionItem({
     required this.label,
     String? insertText,
     this.kind,
     this.detail,
+    this.labelDetails,
   }) : insertText = insertText ?? label;
 
   Map<String, Object?> toJson() => _$CompletionItemToJson(this);
 
   @override
   String toString() {
-    return 'CompletionItem{label: $label, kind: $kind, detail: $detail}';
+    return 'CompletionItem{label: $label, kind: $kind, detail: $detail, labelDetails: $labelDetails}';
   }
 
   @override
@@ -219,11 +262,12 @@ final class CompletionItem {
           runtimeType == other.runtimeType &&
           label == other.label &&
           kind == other.kind &&
-          detail == other.detail;
+          detail == other.detail &&
+          labelDetails == other.labelDetails;
 
   @override
   @JsonKey(includeToJson: false)
-  int get hashCode => Object.hash(label, kind, detail);
+  int get hashCode => Object.hash(label, kind, detail, labelDetails);
 }
 
 /// Response to a completion request containing a list of completion items.
