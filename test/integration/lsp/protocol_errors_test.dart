@@ -90,7 +90,52 @@ void main() {
       });
     });
 
-    group(r'MethodNotFound (-32601) for unknown $/ requests', () {
+    group('ServerNotInitialized (-32002)', () {
+      test(
+        'returns ServerNotInitialized for unknown method before initialize',
+        () async {
+          // Send an unknown request without initializing first.
+          // The server must return ServerNotInitialized, not MethodNotFound,
+          // because the initialization guard runs before method dispatch.
+          final response = await client.sendRawRequest(
+            method: 'textDocument/hover',
+            params: {
+              'textDocument': {'uri': 'file:///test.cls'},
+              'position': {'line': 0, 'character': 0},
+            },
+          );
+
+          expect(response, isLspError(-32002));
+        },
+      );
+
+      test(
+        'returns ServerNotInitialized for known method before initialize',
+        () async {
+          // Even a method the server supports returns ServerNotInitialized
+          // when sent before the initialize handshake.
+          final response = await client.sendRawRequest(
+            method: 'textDocument/completion',
+            params: {
+              'textDocument': {'uri': 'file:///test.cls'},
+              'position': {'line': 0, 'character': 0},
+            },
+          );
+
+          expect(response, isLspError(-32002));
+        },
+      );
+    });
+
+    group(r'MethodNotFound (-32601)', () {
+      setUp(() async {
+        // Initialize so we reach method dispatch (past the ServerNotInitialized guard).
+        await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+      });
+
       test(r'returns MethodNotFound for unknown $/request', () async {
         final response = await client.sendRawRequest(
           method: r'$/unknownRequest',
@@ -121,9 +166,7 @@ void main() {
         expect(response['result'], isNull);
         expect(response.containsKey('error'), isFalse);
       });
-    });
 
-    group(r'MethodNotFound (-32601) for unknown non-$/ methods', () {
       test('returns MethodNotFound for unknown request method', () async {
         final response = await client.sendRawRequest(
           method: 'unknownMethod',
@@ -188,6 +231,37 @@ void main() {
         expect(response['id'], equals(requestId));
       });
 
+      test('registers cancellation before initialize is called', () async {
+        // $/cancelRequest must be processed regardless of initialization state.
+        final requestId = 777;
+
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'method': r'$/cancelRequest',
+          'params': {'id': requestId},
+        });
+
+        // Initialize so we can then send the cancelled request.
+        await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+
+        // The cancellation sent before init should still be registered.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'id': requestId,
+          'method': 'shutdown',
+        });
+
+        final response = await client.waitForAnyResponse(
+          timeout: const Duration(seconds: 2),
+        );
+
+        expect(response, isLspError(-32800));
+        expect(response['id'], equals(requestId));
+      });
+
       test('handles cancellation after request completes', () async {
         // Initialize first so completion can work.
         await client.initialize(
@@ -223,6 +297,23 @@ void main() {
           method: 'shutdown',
         );
         expect(shutdownResponse.containsKey('result'), isTrue);
+      });
+    });
+
+    group('Exit before initialize', () {
+      test('exit in NotInitialized state terminates with code 1', () async {
+        // The exit notification must be honoured regardless of whether
+        // the server has been initialized. Without initialize, the spec
+        // requires exit code 1.
+        //
+        // In tests, exitFn throws _ExitCalled, which propagates through
+        // server.run() and is caught by dispose(). We just verify the
+        // server task ends promptly (i.e. the notification was processed).
+        client.input.addFrame({'jsonrpc': '2.0', 'method': 'exit'});
+
+        // dispose() awaits the server task and swallows _ExitCalled.
+        // If exit was NOT processed this would hang for 2 seconds.
+        await client.dispose().timeout(const Duration(seconds: 2));
       });
     });
 

@@ -1,17 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/message_reader.dart';
 import 'package:test/test.dart';
+
+import '../support/lsp_test_harness.dart';
 
 void main() {
   group('MessageReader response parsing', () {
     test('parses successful client response with null result', () async {
       final json = {'jsonrpc': '2.0', 'id': 'test-123', 'result': null};
 
-      final frame = _createLspFrame(json);
+      final frame = lspFrame(json);
       final controller = StreamController<List<int>>();
       final reader = MessageReader(controller.stream);
 
@@ -37,7 +37,7 @@ void main() {
         'result': {'status': 'ok'},
       };
 
-      final frame = _createLspFrame(json);
+      final frame = lspFrame(json);
       final controller = StreamController<List<int>>();
       final reader = MessageReader(controller.stream);
 
@@ -64,7 +64,7 @@ void main() {
         },
       };
 
-      final frame = _createLspFrame(json);
+      final frame = lspFrame(json);
       final controller = StreamController<List<int>>();
       final reader = MessageReader(controller.stream);
 
@@ -85,7 +85,7 @@ void main() {
     test('returns null for response without id', () async {
       final json = {'jsonrpc': '2.0', 'result': null};
 
-      final frame = _createLspFrame(json);
+      final frame = lspFrame(json);
       final controller = StreamController<List<int>>();
       final reader = MessageReader(controller.stream);
 
@@ -99,16 +99,4 @@ void main() {
       expect(messages, isEmpty);
     });
   });
-}
-
-/// Creates an LSP-framed message from JSON.
-Uint8List _createLspFrame(Object json) {
-  final payload = jsonEncode(json);
-  final body = utf8.encode(payload);
-  final header = ascii.encode('Content-Length: ${body.length}\r\n\r\n');
-
-  final out = BytesBuilder(copy: false);
-  out.add(header);
-  out.add(body);
-  return out.toBytes();
 }

@@ -410,6 +410,23 @@ final class ShutdownRequest extends RequestMessage {
   const ShutdownRequest(super.id);
 }
 
+/// A request with a method the server does not recognise.
+///
+/// The [MessageReader] produces this type when it encounters a JSON-RPC request
+/// (has both `id` and `method`) whose method string is not in the set of
+/// supported methods. The server is responsible for responding with a
+/// `MethodNotFound` error, but only after applying state-machine guards such
+/// as [ServerNotInitialized].
+///
+/// Separating this from parse-layer errors keeps the [MessageReader] as a pure
+/// parser with no protocol-policy knowledge.
+final class UnknownRequest extends RequestMessage {
+  @override
+  final String method;
+
+  const UnknownRequest(super.id, this.method);
+}
+
 /// Base class for LSP notification messages that don't require a response.
 ///
 /// Notifications are fire-and-forget messages sent from client to server.

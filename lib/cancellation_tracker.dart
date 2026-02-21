@@ -2,43 +2,39 @@ import 'dart:collection';
 
 /// Tracks cancelled request IDs for the LSP server.
 ///
-/// This class provides a hybrid cleanup strategy:
-/// - Immediate removal when a request completes or errors
-/// - Bounded FIFO queue (default 1000 IDs) to handle race conditions
+/// Uses a [LinkedHashSet] to provide O(1) lookup, insertion, and removal
+/// while preserving insertion order for FIFO eviction when the set grows
+/// beyond [maxQueueSize].
 ///
-/// The queue prevents unbounded memory growth while handling the case where
-/// a cancellation arrives after the request has already been processed.
+/// The bounded size prevents unbounded memory growth in the case where
+/// cancellations arrive for requests that have already been processed and
+/// can therefore never be consumed by [isCancelled].
 final class CancellationTracker {
   final int _maxQueueSize;
-  final Queue<Object> _cancelledIds = Queue();
-  final Set<Object> _cancelledSet = {};
+  final LinkedHashSet<Object> _cancelled = LinkedHashSet();
 
   CancellationTracker({int maxQueueSize = 1000}) : _maxQueueSize = maxQueueSize;
 
   /// Marks a request ID as cancelled.
   ///
-  /// If the queue is at capacity, the oldest ID is evicted (FIFO).
+  /// If the set is at capacity, the oldest ID is evicted (FIFO) before the
+  /// new one is added.
   void cancel(Object id) {
-    if (_cancelledSet.contains(id)) return;
+    if (_cancelled.contains(id)) return;
 
-    if (_cancelledIds.length >= _maxQueueSize) {
-      final evicted = _cancelledIds.removeFirst();
-      _cancelledSet.remove(evicted);
+    if (_cancelled.length >= _maxQueueSize) {
+      // LinkedHashSet iterates in insertion order, so the first element is
+      // the oldest — remove it to make room.
+      _cancelled.remove(_cancelled.first);
     }
 
-    _cancelledIds.add(id);
-    _cancelledSet.add(id);
+    _cancelled.add(id);
   }
 
-  /// Checks if a request ID has been cancelled and removes it.
+  /// Returns `true` if [id] was cancelled and removes it from tracking.
   ///
-  /// Returns `true` if the ID was cancelled, `false` otherwise.
-  /// The ID is removed from tracking after this check (immediate cleanup).
-  bool isCancelled(Object id) {
-    if (_cancelledSet.remove(id)) {
-      _cancelledIds.remove(id);
-      return true;
-    }
-    return false;
-  }
+  /// Returns `false` if the ID was not marked as cancelled.
+  /// Consuming the ID on first check prevents the set from growing due to
+  /// requests that completed normally before their cancellation was checked.
+  bool isCancelled(Object id) => _cancelled.remove(id);
 }

@@ -200,9 +200,7 @@ Map<String, Object?> jsonRpcInitialize({
     'id': id,
     'method': 'initialize',
     'params': <String, Object?>{
-      ...?workspaceFolders != null
-          ? {'workspaceFolders': workspaceFolders}
-          : null,
+      if (workspaceFolders != null) 'workspaceFolders': workspaceFolders,
     },
   };
 }
@@ -217,7 +215,7 @@ Map<String, Object?> jsonRpcRequest({
     'jsonrpc': '2.0',
     'id': id,
     'method': method,
-    ...?params != null ? {'params': params} : null,
+    if (params != null) 'params': params,
   };
 }
 
@@ -229,6 +227,6 @@ Map<String, Object?> jsonRpcNotification({
   return <String, Object?>{
     'jsonrpc': '2.0',
     'method': method,
-    ...?params != null ? {'params': params} : null,
+    if (params != null) 'params': params,
   };
 }

@@ -176,10 +176,8 @@ final class LspClient {
     }
   }
 
-  /// Closes the input stream without a graceful shutdown.
-  ///
   /// Waits for any response from the server (useful for error responses
-  /// where the request ID may be null or unknown).
+  /// where the request ID may be null or unknown at the call site).
   Future<Map<String, Object?>> waitForAnyResponse({
     Duration timeout = const Duration(seconds: 5),
   }) {

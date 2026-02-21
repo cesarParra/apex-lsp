@@ -24,14 +24,6 @@ final class ParseErrorResult extends MessageParseResult {
   ParseErrorResult({required this.requestId, required this.errorMessage});
 }
 
-/// Method not found error for unknown JSON-RPC methods.
-final class MethodNotFoundResult extends MessageParseResult {
-  final Object requestId;
-  final String method;
-
-  MethodNotFoundResult({required this.requestId, required this.method});
-}
-
 /// Reads and parses Language Server Protocol messages from a byte stream.
 ///
 /// This class handles the LSP message framing protocol, which consists of
@@ -141,9 +133,6 @@ final class MessageReader {
         switch (parseResult) {
           case ParseErrorResult():
             // Yield parse error immediately so server can respond.
-            yield parseResult;
-          case MethodNotFoundResult():
-            // Yield method not found error so server can respond.
             yield parseResult;
           case ParsedMessage(:final message):
             // Try to parse into a typed message.
@@ -260,7 +249,7 @@ final class MessageReader {
     return int.tryParse(idText);
   }
 
-  /// Parses a decoded JSON object into a typed LSP message or error result.
+  /// Parses a decoded JSON object into a typed LSP message.
   ///
   /// Validates JSON-RPC 2.0 format and routes the message to the appropriate
   /// message type based on the `method` field and presence of `id`.
@@ -268,14 +257,13 @@ final class MessageReader {
   /// - [decoded]: The decoded JSON object from the message payload.
   ///
   /// **Message routing:**
-  /// - Messages with `method` and `id` are requests
-  /// - Messages with `method` but no `id` are notifications
-  /// - Responses (with `id` but no `method`) are currently ignored
-  ///
-  /// **Return values:**
-  /// - `ParsedMessage` for known/supported methods
-  /// - `MethodNotFoundResult` for unknown request methods
-  /// - `null` for unknown notifications (silently ignored per LSP spec)
+  /// - Messages with `method` and `id` are requests; unrecognised methods
+  ///   produce an [UnknownRequest] so the server can apply state-machine
+  ///   guards before responding with `MethodNotFound`.
+  /// - Messages with `method` but no `id` are notifications; unrecognised
+  ///   notifications return `null` (silently ignored per LSP spec).
+  /// - Messages with `id` but no `method` are client responses to
+  ///   server-initiated requests.
   ///
   /// Supported requests:
   /// - `initialize`
@@ -285,6 +273,7 @@ final class MessageReader {
   /// Supported notifications:
   /// - `initialized`
   /// - `exit`
+  /// - `$/cancelRequest`
   /// - `textDocument/didOpen`
   /// - `textDocument/didChange`
   /// - `textDocument/didClose`
@@ -326,8 +315,10 @@ final class MessageReader {
         return ParsedMessage(incomingMessage);
       }
 
-      // Unknown request method - return MethodNotFound error.
-      return MethodNotFoundResult(requestId: idAsObject, method: method);
+      // Unknown request method — wrap as UnknownRequest so the server can
+      // apply its state-machine guards (e.g. ServerNotInitialized) before
+      // responding with MethodNotFound.
+      return ParsedMessage(UnknownRequest(idAsObject, method));
     } else if (hasMethod && (!hasId || id == null)) {
       final rawParams = decoded['params'];
 
