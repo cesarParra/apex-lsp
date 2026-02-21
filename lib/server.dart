@@ -137,7 +137,7 @@ final class Server {
         if (req.method != 'initialize' && req.method != 'shutdown') {
           await _output.sendError(
             id: req.id,
-            code: -32002, // ServerNotInitialized (LSP)
+            code: JsonRpcErrorCode.serverNotInitialized.code,
             message: 'Server not initialized',
           );
           return;

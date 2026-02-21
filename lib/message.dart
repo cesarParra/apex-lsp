@@ -54,6 +54,42 @@ enum CompletionItemKind {
 
 int? _completionItemKindToJson(CompletionItemKind? kind) => kind?.value;
 
+/// JSON-RPC 2.0 error codes as defined by the specification.
+///
+/// Includes both standard JSON-RPC codes (-327xx) and LSP-specific
+/// extensions (-328xx and -32002).
+///
+/// See also:
+///  * [ResponseError], which uses these codes in error responses.
+enum JsonRpcErrorCode {
+  /// Invalid JSON was received by the server.
+  /// An error occurred on the server while parsing the JSON text.
+  parseError(code: -32700),
+
+  /// The JSON sent is not a valid Request object.
+  invalidRequest(code: -32600),
+
+  /// The method does not exist or is not available.
+  methodNotFound(code: -32601),
+
+  /// Invalid method parameter(s).
+  invalidParams(code: -32602),
+
+  /// Internal JSON-RPC error.
+  internalError(code: -32603),
+
+  /// The request was cancelled by the client (LSP-specific).
+  requestCancelled(code: -32800),
+
+  /// The server has not been initialized yet (LSP-specific).
+  serverNotInitialized(code: -32002);
+
+  const JsonRpcErrorCode({required this.code});
+
+  /// The numeric error code as defined by the JSON-RPC specification.
+  final int code;
+}
+
 // ----------- Incoming requests and notifications-----------------
 // The LSP protocol defines 2 types of incoming messages: requests and notifications.
 
