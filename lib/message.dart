@@ -414,12 +414,7 @@ final class ShutdownRequest extends RequestMessage {
 ///
 /// The [MessageReader] produces this type when it encounters a JSON-RPC request
 /// (has both `id` and `method`) whose method string is not in the set of
-/// supported methods. The server is responsible for responding with a
-/// `MethodNotFound` error, but only after applying state-machine guards such
-/// as [ServerNotInitialized].
-///
-/// Separating this from parse-layer errors keeps the [MessageReader] as a pure
-/// parser with no protocol-policy knowledge.
+/// supported methods.
 final class UnknownRequest extends RequestMessage {
   @override
   final String method;
