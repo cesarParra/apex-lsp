@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
@@ -55,12 +56,14 @@ final class Server {
     required OpenDocuments openDocuments,
     required LocalIndexer localIndexer,
     required WorkspaceIndexer workspaceIndexer,
+    required CancellationTracker cancellationTracker,
   }) : _output = output,
        _reader = reader,
        _exitFn = exitFn,
        _openDocuments = openDocuments,
        _localIndexer = localIndexer,
-       _workspaceIndexer = workspaceIndexer;
+       _workspaceIndexer = workspaceIndexer,
+       _cancellationTracker = cancellationTracker;
 
   final LspOut _output;
   final MessageReader _reader;
@@ -69,6 +72,7 @@ final class Server {
   final OpenDocuments _openDocuments;
   final LocalIndexer _localIndexer;
   final WorkspaceIndexer _workspaceIndexer;
+  final CancellationTracker _cancellationTracker;
   IndexRepository? _indexRepository;
 
   InitializationStatus _initializationStatus = NotInitialized();
@@ -109,14 +113,27 @@ final class Server {
   /// await server.run(); // Blocks until exit
   /// ```
   Future<void> run() async {
-    await for (final message in _reader.messages()) {
+    await for (final result in _reader.messages()) {
       if (_exiting) break;
 
-      switch (message) {
-        case RequestMessage():
-          await _handleRequest(message);
-        case IncomingNotificationMessage():
-          await _handleNotification(message);
+      switch (result) {
+        case ParseErrorResult(:final requestId, :final errorMessage):
+          // Send JSON-RPC ParseError response per spec.
+          await _output.sendError(
+            id: requestId,
+            code: JsonRpcErrorCode.parseError.code,
+            message: 'Parse error',
+            data: errorMessage,
+          );
+        case ParsedMessage(:final message):
+          switch (message) {
+            case RequestMessage():
+              await _handleRequest(message);
+            case IncomingNotificationMessage():
+              await _handleNotification(message);
+            case ClientResponse():
+              await _handleClientResponse(message);
+          }
       }
     }
   }
@@ -132,12 +149,22 @@ final class Server {
   /// Returns an error response if the server is not initialized and the request
   /// is not `initialize` or `shutdown`.
   Future<void> _handleRequest(RequestMessage req) async {
+    // Check if request has been cancelled
+    if (_cancellationTracker.isCancelled(req.id)) {
+      await _output.sendError(
+        id: req.id,
+        code: JsonRpcErrorCode.requestCancelled.code,
+        message: 'Request cancelled',
+      );
+      return;
+    }
+
     switch (_initializationStatus) {
       case NotInitialized():
         if (req.method != 'initialize' && req.method != 'shutdown') {
           await _output.sendError(
             id: req.id,
-            code: -32002, // ServerNotInitialized (LSP)
+            code: JsonRpcErrorCode.serverNotInitialized.code,
             message: 'Server not initialized',
           );
           return;
@@ -157,6 +184,12 @@ final class Server {
           params: params,
           localIndexer: _localIndexer,
         );
+      case UnknownRequest(:final id, :final method):
+        await _output.sendError(
+          id: id,
+          code: JsonRpcErrorCode.methodNotFound.code,
+          message: "Unknown method '$method'",
+        );
     }
   }
 
@@ -168,64 +201,88 @@ final class Server {
   ///
   /// - [note]: The incoming notification message to handle.
   ///
-  /// Notifications are only processed after the server has been initialized,
-  /// except for protocol lifecycle events.
+  /// Protocol-lifecycle notifications (`exit`, `$/cancelRequest`) are handled
+  /// unconditionally regardless of initialization state, as required by the
+  /// LSP specification. All other notifications require the server to be in
+  /// the [Initialized] state.
   Future<void> _handleNotification(IncomingNotificationMessage note) async {
-    switch (_initializationStatus) {
-      case Initialized(:final params):
-        switch (note) {
-          case InitializedMessage():
-            await logMessage(MessageType.info, 'Apex LSP initialized');
+    switch (note) {
+      case ExitMessage():
+        // Spec: exit 0 if shutdown was requested, exit 1 otherwise.
+        // Must be handled regardless of initialization state.
+        _exiting = true;
+        exitCode = _shutdownRequested ? 0 : 1;
+        await _output.flush();
+        _exitFn(exitCode);
 
-            final token = ProgressToken.string(
-              'apex-lsp-indexing-${DateTime.now().millisecondsSinceEpoch}',
-            );
-            await _output.workDoneProgressCreate(token: token);
+      case CancelRequestNotification(:final params):
+        // Must be registered regardless of initialization state so that
+        // cancellations sent before the server initialises are not lost.
+        _cancellationTracker.cancel(params.id);
 
-            await for (final value in _workspaceIndexer.index(
-              params,
-              token: token,
-            )) {
-              _output.progress(params: value);
-            }
+      case InitializedMessage():
+        if (_initializationStatus case Initialized(:final params)) {
+          await logMessage(MessageType.info, 'Apex LSP initialized');
 
-            _indexRepository = _workspaceIndexer.getIndexLoader(
-              log: (message) =>
-                  logMessage(MessageType.log, '[apex-lsp] $message'),
-            );
+          final token = ProgressToken.string(
+            'apex-lsp-indexing-${DateTime.now().millisecondsSinceEpoch}',
+          );
+          await _output.workDoneProgressCreate(token: token);
 
-            final declarations = await _indexRepository!.getDeclarations();
-            await logMessage(
-              MessageType.log,
-              '[apex-lsp] Workspace index loaded: '
-              '${declarations.length} types: '
-              '${declarations.map((d) => d.name.value).toList()}',
-            );
+          await for (final value in _workspaceIndexer.index(
+            params,
+            token: token,
+          )) {
+            _output.progress(params: value);
+          }
 
-          case TextDocumentDidOpenMessage(:final params):
-            _openDocuments.didOpen(params);
-          case TextDocumentDidChangeMessage(:final params):
-            _openDocuments.didChange(params);
-          case TextDocumentDidCloseMessage(:final params):
-            _openDocuments.didClose(params);
+          _indexRepository = _workspaceIndexer.getIndexLoader(
+            log: (message) =>
+                logMessage(MessageType.log, '[apex-lsp] $message'),
+          );
 
-          case ExitMessage():
-            // Spec: If exit is received and shutdown has been requested -> exit 0,
-            // otherwise -> exit 1.
-            _exiting = true;
-            exitCode = _shutdownRequested ? 0 : 1;
-
-            await logMessage(
-              MessageType.info,
-              'Apex LSP exiting (shutdown=$_shutdownRequested)',
-            );
-            await _output.flush();
-            _exitFn(exitCode);
+          final declarations = await _indexRepository!.getDeclarations();
+          await logMessage(
+            MessageType.log,
+            '[apex-lsp] Workspace index loaded: '
+            '${declarations.length} types: '
+            '${declarations.map((d) => d.name.value).toList()}',
+          );
         }
-      case NotInitialized():
+
+      case TextDocumentDidOpenMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          _openDocuments.didOpen(params);
+        }
+      case TextDocumentDidChangeMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          _openDocuments.didChange(params);
+        }
+      case TextDocumentDidCloseMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          _openDocuments.didClose(params);
+        }
+    }
+  }
+
+  /// Handles client responses to server-initiated requests.
+  ///
+  /// When the server sends a request to the client (like `window/workDoneProgress/create`),
+  /// the client responds with either a success or error response. This method logs
+  /// the response for debugging purposes.
+  ///
+  /// - [response]: The client response message.
+  Future<void> _handleClientResponse(ClientResponse response) async {
+    switch (response) {
+      case ClientSuccessResponse(:final id, :final result):
         await logMessage(
-          MessageType.error,
-          'LSP not initiazed. Received ${note.method}',
+          MessageType.log,
+          '[apex-lsp] Client response to request $id: success (result=$result)',
+        );
+      case ClientErrorResponse(:final id, :final error):
+        await logMessage(
+          MessageType.warning,
+          '[apex-lsp] Client response to request $id: error ${error.code} - ${error.message}',
         );
     }
   }

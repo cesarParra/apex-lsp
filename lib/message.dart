@@ -54,6 +54,42 @@ enum CompletionItemKind {
 
 int? _completionItemKindToJson(CompletionItemKind? kind) => kind?.value;
 
+/// JSON-RPC 2.0 error codes as defined by the specification.
+///
+/// Includes both standard JSON-RPC codes (-327xx) and LSP-specific
+/// extensions (-328xx and -32002).
+///
+/// See also:
+///  * [ResponseError], which uses these codes in error responses.
+enum JsonRpcErrorCode {
+  /// Invalid JSON was received by the server.
+  /// An error occurred on the server while parsing the JSON text.
+  parseError(code: -32700),
+
+  /// The JSON sent is not a valid Request object.
+  invalidRequest(code: -32600),
+
+  /// The method does not exist or is not available.
+  methodNotFound(code: -32601),
+
+  /// Invalid method parameter(s).
+  invalidParams(code: -32602),
+
+  /// Internal JSON-RPC error.
+  internalError(code: -32603),
+
+  /// The request was cancelled by the client (LSP-specific).
+  requestCancelled(code: -32800),
+
+  /// The server has not been initialized yet (LSP-specific).
+  serverNotInitialized(code: -32002);
+
+  const JsonRpcErrorCode({required this.code});
+
+  /// The numeric error code as defined by the JSON-RPC specification.
+  final int code;
+}
+
 // ----------- Incoming requests and notifications-----------------
 // The LSP protocol defines 2 types of incoming messages: requests and notifications.
 
@@ -374,6 +410,18 @@ final class ShutdownRequest extends RequestMessage {
   const ShutdownRequest(super.id);
 }
 
+/// A request with a method the server does not recognise.
+///
+/// The [MessageReader] produces this type when it encounters a JSON-RPC request
+/// (has both `id` and `method`) whose method string is not in the set of
+/// supported methods.
+final class UnknownRequest extends RequestMessage {
+  @override
+  final String method;
+
+  const UnknownRequest(super.id, this.method);
+}
+
 /// Base class for LSP notification messages that don't require a response.
 ///
 /// Notifications are fire-and-forget messages sent from client to server.
@@ -395,6 +443,54 @@ sealed class IncomingNotificationMessageWithParams<TParams>
   TParams get params;
 
   const IncomingNotificationMessageWithParams();
+}
+
+/// Base class for response messages from the client to server-initiated requests.
+///
+/// When the server sends a request to the client (like `window/workDoneProgress/create`),
+/// the client responds with either a success or error response. These responses
+/// include the same `id` as the original request.
+///
+/// See also:
+///  * [ClientSuccessResponse], for successful responses with a result.
+///  * [ClientErrorResponse], for error responses.
+sealed class ClientResponse extends IncomingMessage {
+  /// The request identifier from the original server request.
+  final Object id;
+
+  const ClientResponse(this.id);
+}
+
+/// Successful response from the client to a server-initiated request.
+///
+/// Contains a `result` field with the response data (may be null for void responses).
+final class ClientSuccessResponse extends ClientResponse {
+  /// The result of the request (may be null for void responses).
+  final Object? result;
+
+  const ClientSuccessResponse({required Object id, required this.result})
+    : super(id);
+
+  @override
+  String toString() {
+    return 'ClientSuccessResponse{id: $id, result: $result}';
+  }
+}
+
+/// Error response from the client to a server-initiated request.
+///
+/// Contains an `error` object with code, message, and optional data.
+final class ClientErrorResponse extends ClientResponse {
+  /// The error information.
+  final ResponseError error;
+
+  const ClientErrorResponse({required Object id, required this.error})
+    : super(id);
+
+  @override
+  String toString() {
+    return 'ClientErrorResponse{id: $id, error: $error}';
+  }
 }
 
 /// LSP `initialized` notification.
@@ -497,6 +593,33 @@ class TextDocumentDidCloseMessage
   final DidCloseTextDocumentParams params;
 
   const TextDocumentDidCloseMessage(this.params);
+}
+
+/// LSP `$/cancelRequest` notification.
+///
+/// Sent by the client to cancel a previously sent request. The server should
+/// stop processing the request if possible and return a RequestCancelled error.
+class CancelRequestNotification
+    extends IncomingNotificationMessageWithParams<CancelRequestParams> {
+  @override
+  String get method => r'$/cancelRequest';
+
+  @override
+  final CancelRequestParams params;
+
+  const CancelRequestNotification(this.params);
+}
+
+@JsonSerializable()
+final class CancelRequestParams {
+  final Object id;
+
+  const CancelRequestParams({required this.id});
+
+  factory CancelRequestParams.fromJson(Map<String, Object?> json) =>
+      _$CancelRequestParamsFromJson(json);
+
+  Map<String, Object?> toJson() => _$CancelRequestParamsToJson(this);
 }
 
 @JsonSerializable()

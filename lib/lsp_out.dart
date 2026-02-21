@@ -143,7 +143,8 @@ class LspOut {
 
   /// Sends an error response to an LSP request.
   ///
-  /// - [id]: The request ID from the original request message.
+  /// - [id]: The request ID from the original request message, or `null` for
+  ///   parse errors where the ID cannot be determined.
   /// - [code]: The LSP error code (e.g., -32002 for ServerNotInitialized).
   /// - [message]: Human-readable error message.
   /// - [data]: Optional additional error data.
@@ -157,7 +158,7 @@ class LspOut {
   /// );
   /// ```
   Future<void> sendError({
-    required Object id,
+    required Object? id,
     required int code,
     required String message,
     Object? data,

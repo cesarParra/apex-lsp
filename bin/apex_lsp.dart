@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:io' as io;
 
+import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
@@ -40,6 +41,7 @@ Future<void> main(List<String> args) async {
       fileSystem: fileSystem,
       platform: DartIoLspPlatform(),
     ),
+    cancellationTracker: CancellationTracker(),
   );
 
   try {
