@@ -178,6 +178,20 @@ final class LspClient {
 
   /// Closes the input stream without a graceful shutdown.
   ///
+  /// Waits for any response from the server (useful for error responses
+  /// where the request ID may be null or unknown).
+  Future<Map<String, Object?>> waitForAnyResponse({
+    Duration timeout = const Duration(seconds: 5),
+  }) {
+    return _pollFrames(
+      timeout: timeout,
+      predicate: (frame) =>
+          frame.containsKey('id') &&
+          (frame.containsKey('result') || frame.containsKey('error')),
+      timeoutMessage: 'Timed out waiting for any response',
+    );
+  }
+
   /// Safe to call in `tearDown` even if the server already exited.
   Future<void> dispose() async {
     try {

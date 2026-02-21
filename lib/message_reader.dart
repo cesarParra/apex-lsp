@@ -3,6 +3,27 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'message.dart';
 
+/// Result of parsing a single LSP message.
+///
+/// This sealed class allows the message reader to communicate parse errors
+/// to the server while preserving request IDs when possible, enabling proper
+/// JSON-RPC error responses.
+sealed class MessageParseResult {}
+
+/// Successfully parsed message.
+final class ParsedMessage extends MessageParseResult {
+  final Object message;
+  ParsedMessage(this.message);
+}
+
+/// Parse error with optional request ID (extracted when possible).
+final class ParseErrorResult extends MessageParseResult {
+  final Object? requestId;
+  final String errorMessage;
+
+  ParseErrorResult({required this.requestId, required this.errorMessage});
+}
+
 /// Reads and parses Language Server Protocol messages from a byte stream.
 ///
 /// This class handles the LSP message framing protocol, which consists of
@@ -47,27 +68,28 @@ final class MessageReader {
   /// Streams LSP messages parsed from the input byte stream.
   ///
   /// Continuously reads and parses LSP-framed messages, yielding each
-  /// successfully parsed message. The stream continues until the input
-  /// stream closes or an unrecoverable error occurs.
+  /// successfully parsed message or parse error. The stream continues until
+  /// the input stream closes or an unrecoverable error occurs.
   ///
   /// **Protocol handling:**
   /// - Buffers incoming bytes until a complete message is available
   /// - Validates Content-Length header
   /// - Decodes JSON payloads as UTF-8
   /// - Routes messages to appropriate types (requests vs notifications)
-  ///
-  /// Invalid or malformed messages are silently skipped to maintain server
-  /// stability.
+  /// - Returns [ParseErrorResult] for malformed JSON (per JSON-RPC 2.0)
   ///
   /// Example:
   /// ```dart
-  /// await for (final message in reader.messages()) {
-  ///   if (message is InitializeRequest) {
-  ///     // Handle initialization
+  /// await for (final result in reader.messages()) {
+  ///   switch (result) {
+  ///     case ParsedMessage(:final message):
+  ///       // Handle the message
+  ///     case ParseErrorResult():
+  ///       // Send error response
   ///   }
   /// }
   /// ```
-  Stream<IncomingMessage> messages() async* {
+  Stream<MessageParseResult> messages() async* {
     // Buffer of bytes read so far.
     final buffer = BytesBuilder(copy: false);
 
@@ -107,15 +129,17 @@ final class MessageReader {
         // Consume used bytes from the buffer.
         _consume(buffer, bodyEnd);
 
-        final decoded = _tryDecodeJson(bodyText);
-        if (decoded == null) {
-          // TODO: Handle? Ignore malformed JSON in this minimal implementation.
-          continue;
-        }
-
-        final msg = _parseJsonRpcMessage(decoded);
-        if (msg != null) {
-          yield msg;
+        final parseResult = _tryDecodeJson(bodyText);
+        switch (parseResult) {
+          case ParseErrorResult():
+            // Yield parse error immediately so server can respond.
+            yield parseResult;
+          case ParsedMessage(:final message):
+            // Try to parse into a typed message.
+            final typedMessage = _parseJsonRpcMessage(message);
+            if (typedMessage != null) {
+              yield ParsedMessage(typedMessage);
+            }
         }
       }
     }
@@ -174,20 +198,54 @@ final class MessageReader {
     return null;
   }
 
-  /// Attempts to decode a JSON string into a Dart object.
+  /// Attempts to decode the JSON payload from a message body.
   ///
-  /// - [text]: The JSON string to decode.
+  /// Returns a [MessageParseResult] containing either:
+  /// - A successfully decoded object
+  /// - A parse error with the request ID extracted when possible
   ///
-  /// Returns the decoded object, or `null` if the JSON is malformed.
-  ///
-  /// TODO: Return proper error object rather than null. That will allow us to not have to be checking for `Object`
-  /// types in the code above
-  static Object? _tryDecodeJson(String text) {
+  /// When JSON is malformed, this method attempts to extract the `id` field
+  /// using a simple regex pattern to enable proper error responses per
+  /// JSON-RPC 2.0 specification.
+  static MessageParseResult _tryDecodeJson(String text) {
     try {
-      return jsonDecode(text);
-    } catch (_) {
-      return null;
+      final decoded = jsonDecode(text);
+      // JSON must be an object for JSON-RPC 2.0.
+      if (decoded is! Map) {
+        return ParseErrorResult(
+          requestId: null,
+          errorMessage: 'JSON-RPC message must be an object',
+        );
+      }
+      return ParsedMessage(decoded);
+    } catch (error) {
+      // Try to extract the request ID for better error responses.
+      final requestId = _extractRequestId(text);
+      return ParseErrorResult(
+        requestId: requestId,
+        errorMessage: 'Parse error: $error',
+      );
     }
+  }
+
+  /// Attempts to extract the request ID from malformed JSON.
+  ///
+  /// Uses a simple pattern match to find `"id": <value>` in the text.
+  /// Returns `null` if no ID can be extracted.
+  static Object? _extractRequestId(String text) {
+    // Look for "id": followed by a number or string.
+    // This is a best-effort extraction and won't handle all cases.
+    final match = RegExp(r'"id"\s*:\s*(\d+|"[^"]*")').firstMatch(text);
+    if (match == null) return null;
+
+    final idText = match.group(1);
+    if (idText == null) return null;
+
+    // Try parsing as int first, then as string.
+    if (idText.startsWith('"')) {
+      return idText.substring(1, idText.length - 1);
+    }
+    return int.tryParse(idText);
   }
 
   /// Parses a decoded JSON object into a typed LSP message.

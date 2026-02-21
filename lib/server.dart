@@ -109,14 +109,25 @@ final class Server {
   /// await server.run(); // Blocks until exit
   /// ```
   Future<void> run() async {
-    await for (final message in _reader.messages()) {
+    await for (final result in _reader.messages()) {
       if (_exiting) break;
 
-      switch (message) {
-        case RequestMessage():
-          await _handleRequest(message);
-        case IncomingNotificationMessage():
-          await _handleNotification(message);
+      switch (result) {
+        case ParseErrorResult(:final requestId, :final errorMessage):
+          // Send JSON-RPC ParseError response per spec.
+          await _output.sendError(
+            id: requestId,
+            code: JsonRpcErrorCode.parseError.code,
+            message: 'Parse error',
+            data: errorMessage,
+          );
+        case ParsedMessage(:final message):
+          switch (message) {
+            case RequestMessage():
+              await _handleRequest(message);
+            case IncomingNotificationMessage():
+              await _handleNotification(message);
+          }
       }
     }
   }
