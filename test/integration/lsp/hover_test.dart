@@ -32,7 +32,7 @@ void main() {
       });
     });
 
-    group('User Story 2.1 — local variables', () {
+    group('local variables', () {
       test('hover over variable name shows its type', () async {
         // Place {cursor} inside the variable name so the position is derived
         // directly from the marker rather than being hard-coded.
@@ -54,7 +54,7 @@ void main() {
       });
     });
 
-    group('User Story 2.2 — methods', () {
+    group('methods', () {
       test('hover over method name shows return type and parameters', () async {
         const source = '''
 public class MyClass {
@@ -79,7 +79,7 @@ public class MyClass {
       });
     });
 
-    group('User Story 2.3 — class names', () {
+    group('class names', () {
       test('hover over class name shows class declaration summary', () async {
         const source = '''
 public class Account {}
@@ -121,7 +121,7 @@ Status s;
       });
     });
 
-    group('User Story 2.4 — workspace symbols', () {
+    group('workspace symbols', () {
       test('hover over workspace class shows same content as local', () async {
         final ws = await createTestWorkspace(
           classFiles: [
@@ -153,7 +153,7 @@ Status s;
       });
     });
 
-    group('User Story 2.5 — unresolvable symbols', () {
+    group('unresolvable symbols', () {
       test('hovering over unknown symbol returns null, not an error', () async {
         const source = 'UnknownType x;';
         final document = Document.withText(source);
