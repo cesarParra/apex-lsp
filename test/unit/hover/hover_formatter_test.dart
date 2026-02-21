@@ -1,6 +1,7 @@
 import 'package:apex_lsp/hover/hover_formatter.dart';
 import 'package:apex_lsp/hover/symbol_resolver.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
+import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:test/test.dart';
 
@@ -31,7 +32,7 @@ void main() {
 
         final hover = formatHover(resolved);
 
-        expect(hover.contents.kind, equals('markdown'));
+        expect(hover.contents.kind, equals(MarkupKind.markdown));
       });
     });
 

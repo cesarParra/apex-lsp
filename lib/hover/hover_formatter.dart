@@ -32,7 +32,10 @@ Hover formatHover(ResolvedSymbol symbol) {
   };
 
   return Hover(
-    contents: MarkupContent(kind: 'markdown', value: '```apex\n$markdown\n```'),
+    contents: MarkupContent(
+      kind: MarkupKind.markdown,
+      value: '```apex\n$markdown\n```',
+    ),
   );
 }
 

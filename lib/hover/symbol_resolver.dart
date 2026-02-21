@@ -62,7 +62,8 @@ ResolvedSymbol? resolveSymbolAt({
 
   final name = DeclarationName(identifier);
 
-  // Search top-level types first.
+  // Search top-level types first. This matches Apex name-resolution rules:
+  // a type name always shadows a local variable with the same name.
   final type = index.findType(name);
   if (type != null) return ResolvedType(type);
 
@@ -72,7 +73,9 @@ ResolvedSymbol? resolveSymbolAt({
     if (match != null) return ResolvedEnumValue(match, parentEnum: decl);
   }
 
-  // Search class members (methods and fields).
+  // Search class members (methods and fields). When a name matches but is
+  // not a hoverable member (e.g. a ConstructorDeclaration), we stop searching
+  // rather than falling through to unrelated declarations.
   for (final decl in index.whereType<IndexedClass>()) {
     for (final member in decl.members) {
       if (member.name == name) {

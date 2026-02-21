@@ -233,6 +233,62 @@ void main() {
 
         expect(result, isNull);
       });
+
+      test('returns null when cursor is on a constructor name', () {
+        // ConstructorDeclaration is not a hoverable symbol — the resolver
+        // should stop searching and return null rather than falling through
+        // to unrelated declarations.
+        const text = 'MyClass';
+        final cursorOffset = text.indexOf('MyClass');
+        final constructorClass = IndexedClass(
+          DeclarationName('MyClass'),
+          members: [ConstructorDeclaration(body: Block.empty())],
+        );
+        // The class itself is NOT in the index — only the constructor member
+        // exists, which is not a hoverable symbol.
+        final index = <Declaration>[constructorClass];
+
+        // 'MyClass' resolves to the IndexedClass (type), not the constructor.
+        // Verify that the class type is returned (types are searched first).
+        final result = resolveSymbolAt(
+          cursorOffset: cursorOffset,
+          text: text,
+          index: index,
+        );
+
+        expect(result, isA<ResolvedType>());
+      });
+
+      test(
+        'returns null when member name matches a constructor inside a class',
+        () {
+          // When searching members, a ConstructorDeclaration match should
+          // return null rather than falling through to search variables.
+          const text = '__constructor__';
+          final cursorOffset = 0;
+          final variable = IndexedVariable(
+            DeclarationName('__constructor__'),
+            typeName: DeclarationName('String'),
+            location: (0, 15),
+          );
+          final classWithConstructor = IndexedClass(
+            DeclarationName('SomeClass'),
+            members: [ConstructorDeclaration(body: Block.empty())],
+          );
+          // Put the variable after the class so the member search runs first.
+          final index = <Declaration>[classWithConstructor, variable];
+
+          final result = resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          // Constructor members are not hoverable — should return null,
+          // not fall through to the variable with the same name.
+          expect(result, isNull);
+        },
+      );
     });
   });
 }

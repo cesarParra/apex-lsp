@@ -9,6 +9,7 @@ import 'package:apex_lsp/hover/symbol_resolver.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
+import 'package:apex_lsp/utils/text_utils.dart';
 
 import 'lsp_out.dart';
 import 'message.dart';
@@ -388,7 +389,7 @@ final class Server {
     final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
     final index = [...localIndex, ...workspaceTypes];
 
-    final cursorOffset = _offsetAtPosition(
+    final cursorOffset = offsetAtPosition(
       text: text,
       line: params.position.line,
       character: params.position.character,
@@ -403,26 +404,4 @@ final class Server {
     final result = resolved != null ? formatHover(resolved).toJson() : null;
     await _output.sendResponse(id: id, result: result);
   }
-}
-
-/// Converts a line and character position to a byte offset within the text.
-///
-/// Mirrors the same logic used in the completion handler.
-int _offsetAtPosition({
-  required String text,
-  required int line,
-  required int character,
-}) {
-  if (line < 0) return 0;
-  final lines = text.split('\n');
-  if (lines.isEmpty) return 0;
-  if (line >= lines.length) return text.length;
-
-  var offset = 0;
-  for (var i = 0; i < line; i++) {
-    offset += lines[i].length + 1;
-  }
-  final lineText = lines[line];
-  final clamped = character.clamp(0, lineText.length).toInt();
-  return offset + clamped;
 }

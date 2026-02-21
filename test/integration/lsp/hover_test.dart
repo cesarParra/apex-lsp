@@ -10,11 +10,12 @@ void main() {
   group('LSP Hover', () {
     late TestWorkspace workspace;
     late LspClient client;
+    late InitializeResult initResult;
 
     setUp(() async {
       workspace = await createTestWorkspace();
       client = createLspClient()..start();
-      await client.initialize(
+      initResult = await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
       );
@@ -26,33 +27,25 @@ void main() {
     });
 
     group('hoverProvider capability', () {
-      test('server advertises hoverProvider in capabilities', () async {
-        // A fresh client to inspect initialize result.
-        final ws = await createTestWorkspace();
-        final c = createLspClient()..start();
-        final result = await c.initialize(
-          workspaceUri: ws.uri,
-          waitForIndexing: true,
-        );
-        expect(result, hasCapability('hoverProvider'));
-        await c.dispose();
-        await deleteTestWorkspace(ws);
+      test('server advertises hoverProvider in capabilities', () {
+        expect(initResult, hasCapability('hoverProvider'));
       });
     });
 
     group('User Story 2.1 — local variables', () {
       test('hover over variable name shows its type', () async {
+        // Place {cursor} inside the variable name so the position is derived
+        // directly from the marker rather than being hard-coded.
         final textWithPosition = extractCursorPosition(
-          'String myVariable = null;\n{cursor}',
+          'String my{cursor}Variable = null;',
         );
         final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover on 'myVariable' (same line, character 7 is in the middle of 'myVariable')
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 0,
-          character: 7,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);

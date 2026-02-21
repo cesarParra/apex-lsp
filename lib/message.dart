@@ -33,6 +33,24 @@ int messageTypeToJson(MessageType type) => type.code;
 MessageType messageTypeFromJson(int code) =>
     MessageType.values.firstWhere((t) => t.code == code);
 
+/// LSP markup kinds for hover and documentation content.
+///
+/// Maps to the `MarkupKind` string constants defined in the LSP specification.
+enum MarkupKind {
+  /// Plain text content (no formatting).
+  plaintext(value: 'plaintext'),
+
+  /// GitHub-flavoured markdown content.
+  markdown(value: 'markdown');
+
+  const MarkupKind({required this.value});
+
+  /// The string value as defined by the LSP specification.
+  final String value;
+}
+
+String markupKindToJson(MarkupKind kind) => kind.value;
+
 /// LSP completion item kinds mapped to their protocol integer values.
 ///
 /// Only includes the kinds used by this server. See the LSP specification
@@ -383,8 +401,9 @@ final class HoverRequest extends RequestMessageWithParams<HoverParams> {
 /// a [MarkupContent] object.
 @JsonSerializable(createFactory: false)
 final class MarkupContent {
-  /// The markup kind. Typically `'markdown'` or `'plaintext'`.
-  final String kind;
+  /// The markup kind — either [MarkupKind.plaintext] or [MarkupKind.markdown].
+  @JsonKey(toJson: markupKindToJson)
+  final MarkupKind kind;
 
   /// The actual hover text content.
   final String value;
