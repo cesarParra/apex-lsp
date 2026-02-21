@@ -48,8 +48,17 @@ final class ResolvedEnumValue extends ResolvedSymbol {
 /// Resolves the symbol at [cursorOffset] within [text] using [index].
 ///
 /// Extracts the identifier under the cursor, then searches [index] for a
-/// matching declaration. Returns a [ResolvedSymbol] variant that wraps the
-/// found declaration, or `null` if no symbol is found.
+/// matching declaration following lexical scoping rules. Returns a
+/// [ResolvedSymbol] variant that wraps the found declaration, or `null` if no
+/// symbol is found.
+///
+/// Search order follows Apex name-resolution rules:
+/// 1. Local variables and parameters (with visibility checking)
+/// 2. Class members (methods and fields) in the enclosing class
+/// 3. Top-level types (classes, enums, interfaces)
+/// 4. Enum values
+///
+/// This ensures local declarations shadow outer scope declarations.
 ResolvedSymbol? resolveSymbolAt({
   required int cursorOffset,
   required String text,
@@ -62,16 +71,15 @@ ResolvedSymbol? resolveSymbolAt({
 
   final name = DeclarationName(identifier);
 
-  // Search top-level types first. This matches Apex name-resolution rules:
-  // a type name always shadows a local variable with the same name.
-  final type = index.findType(name);
-  if (type != null) return ResolvedType(type);
-
-  // Search enum values across all enums.
-  for (final decl in index.whereType<IndexedEnum>()) {
-    final match = decl.values.firstWhereOrNull((v) => v.name == name);
-    if (match != null) return ResolvedEnumValue(match, parentEnum: decl);
-  }
+  // Search local variables first (parameters and local vars) with visibility.
+  // Local scope always shadows outer scopes.
+  final enclosing = index.enclosingAt<Declaration>(cursorOffset);
+  final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
+  final variable = expandedIndex
+      .whereType<IndexedVariable>()
+      .where((v) => v.isVisibleAt(cursorOffset))
+      .firstWhereOrNull((v) => v.name == name);
+  if (variable != null) return ResolvedVariable(variable);
 
   // Search class members (methods and fields). When a name matches but is
   // not a hoverable member (e.g. a ConstructorDeclaration), we stop searching
@@ -94,11 +102,15 @@ ResolvedSymbol? resolveSymbolAt({
     if (match != null) return ResolvedMethod(match, parentType: decl);
   }
 
-  // Search local variables.
-  final variable = index.whereType<IndexedVariable>().firstWhereOrNull(
-    (v) => v.name == name,
-  );
-  if (variable != null) return ResolvedVariable(variable);
+  // Search top-level types (classes, enums, interfaces).
+  final type = index.findType(name);
+  if (type != null) return ResolvedType(type);
+
+  // Search enum values across all enums.
+  for (final decl in index.whereType<IndexedEnum>()) {
+    final match = decl.values.firstWhereOrNull((v) => v.name == name);
+    if (match != null) return ResolvedEnumValue(match, parentEnum: decl);
+  }
 
   return null;
 }

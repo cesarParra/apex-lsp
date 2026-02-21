@@ -63,6 +63,128 @@ void main() {
 
         expect(result, isNull);
       });
+
+      test(
+        'respects visibility: returns null when cursor is before declaration',
+        () {
+          const text = 'x = myVar; String myVar;';
+          final cursorOffset = text.indexOf(
+            'myVar',
+          ); // First usage, before declaration
+          final variable = IndexedVariable(
+            DeclarationName('myVar'),
+            typeName: DeclarationName('String'),
+            location: (18, 24), // Declaration at end of text
+            visibility: VisibleAfterDeclaration(),
+          );
+          final index = <Declaration>[variable];
+
+          final result = resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          expect(
+            result,
+            isNull,
+            reason: 'Variable should not be visible before its declaration',
+          );
+        },
+      );
+
+      test(
+        'respects visibility: resolves when cursor is after declaration',
+        () {
+          const text = 'String myVar; x = myVar;';
+          final cursorOffset = text.indexOf(
+            'myVar',
+            13,
+          ); // Second usage, after declaration
+          final variable = IndexedVariable(
+            DeclarationName('myVar'),
+            typeName: DeclarationName('String'),
+            location: (0, 13),
+            visibility: VisibleAfterDeclaration(),
+          );
+          final index = <Declaration>[variable];
+
+          final result = resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          expect(result, isA<ResolvedVariable>());
+          expect(
+            (result as ResolvedVariable).variable.name.value,
+            equals('myVar'),
+          );
+        },
+      );
+
+      test(
+        'respects scope visibility: returns null when cursor is after scope end',
+        () {
+          const text = '{ String myVar; } x = myVar;';
+          final cursorOffset = text.indexOf(
+            'myVar',
+            17,
+          ); // Usage after closing brace
+          final scopeEnd = text.indexOf('}'); // End of block
+          final variable = IndexedVariable(
+            DeclarationName('myVar'),
+            typeName: DeclarationName('String'),
+            location: (2, 15),
+            visibility: VisibleBetweenDeclarationAndScopeEnd(
+              scopeEnd: scopeEnd,
+            ),
+          );
+          final index = <Declaration>[variable];
+
+          final result = resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          expect(
+            result,
+            isNull,
+            reason: 'Variable should not be visible outside its scope',
+          );
+        },
+      );
+
+      test(
+        'respects scope visibility: resolves when cursor is within scope',
+        () {
+          const text = '{ String myVar; x = myVar; }';
+          final cursorOffset = text.indexOf('myVar', 15); // Usage within block
+          final scopeEnd = text.indexOf('}'); // End of block
+          final variable = IndexedVariable(
+            DeclarationName('myVar'),
+            typeName: DeclarationName('String'),
+            location: (2, 15),
+            visibility: VisibleBetweenDeclarationAndScopeEnd(
+              scopeEnd: scopeEnd,
+            ),
+          );
+          final index = <Declaration>[variable];
+
+          final result = resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          expect(result, isA<ResolvedVariable>());
+          expect(
+            (result as ResolvedVariable).variable.name.value,
+            equals('myVar'),
+          );
+        },
+      );
     });
 
     group('class names', () {
@@ -208,6 +330,125 @@ void main() {
       });
     });
 
+    group('shadowing and name resolution priority', () {
+      test('local variable shadows class with same name', () {
+        const text = 'Parser token;';
+        final cursorOffset = text.indexOf('token');
+        final parserClass = IndexedClass(
+          DeclarationName('Parser'),
+          members: [],
+        );
+        final tokenVariable = IndexedVariable(
+          DeclarationName('token'),
+          typeName: DeclarationName('Parser'),
+          location: (0, 13),
+        );
+        // Both the class 'Parser' and variable 'token' are in index
+        final index = <Declaration>[parserClass, tokenVariable];
+
+        final result = resolveSymbolAt(
+          cursorOffset: cursorOffset,
+          text: text,
+          index: index,
+        );
+
+        // Should resolve to the variable 'token', not the class
+        expect(
+          result,
+          isA<ResolvedVariable>(),
+          reason: 'Local variable should shadow any class name',
+        );
+        expect(
+          (result as ResolvedVariable).variable.name.value,
+          equals('token'),
+        );
+        expect(result.variable.typeName.value, equals('Parser'));
+      });
+
+      test('parameter shadows workspace class with similar name', () {
+        const text = 'void visit(Token token) {}';
+        final cursorOffset = text.indexOf('token');
+        final tokenClass = IndexedClass(DeclarationName('Token'), members: []);
+        final tokenParam = IndexedVariable(
+          DeclarationName('token'),
+          typeName: DeclarationName('Token'),
+          location: (11, 23),
+        );
+        final index = <Declaration>[tokenClass, tokenParam];
+
+        final result = resolveSymbolAt(
+          cursorOffset: cursorOffset,
+          text: text,
+          index: index,
+        );
+
+        expect(
+          result,
+          isA<ResolvedVariable>(),
+          reason: 'Parameter should shadow workspace class',
+        );
+        expect(
+          (result as ResolvedVariable).variable.name.value,
+          equals('token'),
+        );
+      });
+
+      test(
+        'resolves to class when no local variable with that name exists',
+        () {
+          const text = 'Token t;';
+          final cursorOffset = text.indexOf('Token');
+          final tokenClass = IndexedClass(
+            DeclarationName('Token'),
+            members: [],
+          );
+          final index = <Declaration>[tokenClass];
+
+          final result = resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          expect(result, isA<ResolvedType>());
+          expect(
+            (result as ResolvedType).indexedType.name.value,
+            equals('Token'),
+          );
+        },
+      );
+
+      test('case insensitive match for variable still respects shadowing', () {
+        // Apex is case-insensitive for identifiers
+        const text = 'MyClass myclass;';
+        final cursorOffset = text.indexOf('myclass');
+        final myClassType = IndexedClass(
+          DeclarationName('MyClass'),
+          members: [],
+        );
+        final myClassVar = IndexedVariable(
+          DeclarationName('myclass'),
+          typeName: DeclarationName('String'),
+          location: (8, 15),
+        );
+        final index = <Declaration>[myClassType, myClassVar];
+
+        final result = resolveSymbolAt(
+          cursorOffset: cursorOffset,
+          text: text,
+          index: index,
+        );
+
+        // Should find the variable even though cases don't match exactly
+        expect(
+          result,
+          isA<ResolvedVariable>(),
+          reason:
+              'Local variable should shadow type even with different casing',
+        );
+      });
+    });
+
     group('edge cases', () {
       test('returns null when cursor is past end of text', () {
         const text = 'String x;';
@@ -259,24 +500,49 @@ void main() {
         expect(result, isA<ResolvedType>());
       });
 
+      test('local variable shadows constructor member with same name', () {
+        // With proper lexical scoping, local variables shadow class members,
+        // even if the member is a non-hoverable constructor.
+        const text = '__constructor__';
+        final cursorOffset = 0;
+        final variable = IndexedVariable(
+          DeclarationName('__constructor__'),
+          typeName: DeclarationName('String'),
+          location: (0, 15),
+        );
+        final classWithConstructor = IndexedClass(
+          DeclarationName('SomeClass'),
+          members: [ConstructorDeclaration(body: Block.empty())],
+        );
+        final index = <Declaration>[classWithConstructor, variable];
+
+        final result = resolveSymbolAt(
+          cursorOffset: cursorOffset,
+          text: text,
+          index: index,
+        );
+
+        // Local variables shadow class members (even constructors).
+        expect(result, isA<ResolvedVariable>());
+        expect(
+          (result as ResolvedVariable).variable.name.value,
+          equals('__constructor__'),
+        );
+      });
+
       test(
-        'returns null when member name matches a constructor inside a class',
+        'returns null when hovering over constructor with no shadowing variable',
         () {
-          // When searching members, a ConstructorDeclaration match should
-          // return null rather than falling through to search variables.
+          // Constructors are not hoverable when there's no local variable
+          // shadowing them.
           const text = '__constructor__';
           final cursorOffset = 0;
-          final variable = IndexedVariable(
-            DeclarationName('__constructor__'),
-            typeName: DeclarationName('String'),
-            location: (0, 15),
-          );
           final classWithConstructor = IndexedClass(
             DeclarationName('SomeClass'),
             members: [ConstructorDeclaration(body: Block.empty())],
           );
-          // Put the variable after the class so the member search runs first.
-          final index = <Declaration>[classWithConstructor, variable];
+          // Only the class with constructor, no variable
+          final index = <Declaration>[classWithConstructor];
 
           final result = resolveSymbolAt(
             cursorOffset: cursorOffset,
@@ -284,8 +550,7 @@ void main() {
             index: index,
           );
 
-          // Constructor members are not hoverable — should return null,
-          // not fall through to the variable with the same name.
+          // Constructor members are not hoverable.
           expect(result, isNull);
         },
       );

@@ -191,7 +191,7 @@ Future<CompletionList> onCompletion({
   );
 
   final enclosing = index.enclosingAt<Declaration>(cursorOffset);
-  final expandedIndex = [...index, ..._getBodyDeclarations(enclosing)];
+  final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
 
   final contextDetector = ContextDetector();
   final context = await contextDetector.detect(
@@ -348,24 +348,3 @@ bool _isStaticDeclaration(Declaration declaration) => switch (declaration) {
   EnumValueMember() || IndexedType() || ConstructorDeclaration() => true,
   IndexedVariable() => false,
 };
-
-List<Declaration> _getBodyDeclarations(Declaration? declaration) {
-  return switch (declaration) {
-    null ||
-    FieldMember() ||
-    EnumValueMember() ||
-    IndexedVariable() ||
-    IndexedInterface() ||
-    IndexedEnum() => const [],
-
-    // Declarations with body
-    ConstructorDeclaration(:final body) ||
-    MethodDeclaration(:final body) => body.declarations,
-
-    IndexedClass() => [
-      ...declaration.members,
-      ...declaration.members.expand(_getBodyDeclarations),
-      ...declaration.staticInitializers.expand((s) => s.declarations),
-    ],
-  };
-}
