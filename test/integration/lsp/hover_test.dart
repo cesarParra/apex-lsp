@@ -52,6 +52,88 @@ void main() {
         expect(hoverResult, contains('String'));
         expect(hoverResult, contains('myVariable'));
       });
+
+      test('hover over local variable in method body shows type', () async {
+        const source = '''
+public class TestClass {
+  public void setIsInListLiteral() {
+    String myLocalString;
+    System.debug(myLocalString);
+  }
+}
+''';
+        final document = Document.withText(source);
+        await client.openDocument(document);
+
+        // Hover over 'myLocalString' in the debug statement (line 3)
+        final hoverResult = await client.hover(
+          uri: document.uri,
+          line: 3,
+          character: 18, // Inside 'myLocalString' after 'debug('
+        );
+
+        expect(
+          hoverResult,
+          isNotNull,
+          reason: 'Should resolve local variable within method',
+        );
+        expect(hoverResult, contains('String'));
+        expect(hoverResult, contains('myLocalString'));
+      });
+
+      test('hover before declaration returns null', () async {
+        const source = '''
+public class TestClass {
+  public void test() {
+    x = myVar;
+    String myVar;
+  }
+}
+''';
+        final document = Document.withText(source);
+        await client.openDocument(document);
+
+        // Hover over 'myVar' before its declaration (line 2)
+        final hoverResult = await client.hover(
+          uri: document.uri,
+          line: 2,
+          character: 8, // 'myVar' in assignment
+        );
+
+        expect(
+          hoverResult,
+          isNull,
+          reason: 'Variable should not be visible before declaration',
+        );
+      });
+
+      test('hover outside scope returns null', () async {
+        const source = '''
+public class TestClass {
+  public void test() {
+    {
+      String scopedVar;
+    }
+    x = scopedVar;
+  }
+}
+''';
+        final document = Document.withText(source);
+        await client.openDocument(document);
+
+        // Hover over 'scopedVar' outside its block scope (line 5)
+        final hoverResult = await client.hover(
+          uri: document.uri,
+          line: 5,
+          character: 8, // 'scopedVar' outside scope
+        );
+
+        expect(
+          hoverResult,
+          isNull,
+          reason: 'Variable should not be visible outside its scope',
+        );
+      });
     });
 
     group('methods', () {
@@ -151,6 +233,102 @@ Status s;
         await c.dispose();
         await deleteTestWorkspace(ws);
       });
+    });
+
+    group('shadowing', () {
+      test('parameter shadows workspace class with similar name', () async {
+        final ws = await createTestWorkspace(
+          classFiles: [(name: 'Token.cls', source: 'public class Token { }')],
+        );
+        final c = createLspClient()..start();
+        await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
+
+        const source = '''
+public class Parser {
+  public virtual Object visit(Parser token) {}
+}
+''';
+        final document = Document.withText(source);
+        await c.openDocument(document);
+
+        // Hover over 'token' parameter (line 1, after 'Parser ')
+        final hoverResult = await c.hover(
+          uri: document.uri,
+          line: 1,
+          character: 39, // Inside 'token' parameter name
+        );
+
+        expect(hoverResult, isNotNull);
+        expect(
+          hoverResult,
+          contains('Parser'),
+          reason: 'Should show parameter type Parser',
+        );
+        expect(
+          hoverResult,
+          contains('token'),
+          reason: 'Should show parameter name token',
+        );
+        expect(
+          hoverResult,
+          isNot(contains('class Token')),
+          reason: 'Should not resolve to workspace Token class',
+        );
+
+        await c.dispose();
+        await deleteTestWorkspace(ws);
+      });
+
+      test(
+        'local variable with same name as workspace class resolves to variable',
+        () async {
+          final ws = await createTestWorkspace(
+            classFiles: [
+              (name: 'Account.cls', source: 'public class Account { }'),
+            ],
+          );
+          final c = createLspClient()..start();
+          await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
+
+          const source = '''
+public class TestClass {
+  public void test() {
+    String account;
+    System.debug(account);
+  }
+}
+''';
+          final document = Document.withText(source);
+          await c.openDocument(document);
+
+          // Hover over 'account' variable usage (line 3)
+          final hoverResult = await c.hover(
+            uri: document.uri,
+            line: 3,
+            character: 18,
+          );
+
+          expect(hoverResult, isNotNull);
+          expect(
+            hoverResult,
+            contains('String'),
+            reason: 'Should show variable type String',
+          );
+          expect(
+            hoverResult,
+            contains('account'),
+            reason: 'Should show variable name',
+          );
+          expect(
+            hoverResult,
+            isNot(contains('class Account')),
+            reason: 'Should not resolve to workspace Account class',
+          );
+
+          await c.dispose();
+          await deleteTestWorkspace(ws);
+        },
+      );
     });
 
     group('unresolvable symbols', () {

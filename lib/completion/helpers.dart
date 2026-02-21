@@ -91,8 +91,9 @@ extension IterableExtension<T> on Iterable<T> {
 
 extension DeclarationsExtension on List<Declaration> {
   IndexedType? findType(DeclarationName name) =>
-      whereType<IndexedType>()
-          .firstWhereOrNull((indexedType) => indexedType.name == name) ??
+      whereType<IndexedType>().firstWhereOrNull(
+        (indexedType) => indexedType.name == name,
+      ) ??
       whereType<IndexedClass>()
           .expand((c) => c.members)
           .whereType<IndexedType>()
@@ -112,15 +113,45 @@ extension DeclarationsExtension on List<Declaration> {
   /// class members. Returns null if any segment cannot be resolved.
   Declaration? resolveQualifiedName(String qualifiedName) {
     final segments = qualifiedName.split('.');
-    if (segments.length < 2) return findDeclaration(DeclarationName(qualifiedName));
+    if (segments.length < 2) {
+      return findDeclaration(DeclarationName(qualifiedName));
+    }
 
     Declaration? current = findDeclaration(DeclarationName(segments.first));
     for (var i = 1; i < segments.length; i++) {
       if (current is! IndexedClass) return null;
       final memberName = DeclarationName(segments[i]);
-      current = current.members
-          .firstWhereOrNull((m) => m.name == memberName);
+      current = current.members.firstWhereOrNull((m) => m.name == memberName);
     }
     return current;
   }
+}
+
+/// Extracts declarations from method/constructor bodies and class members.
+///
+/// Used by both completion and hover to expand the index with declarations
+/// from the enclosing context.
+///
+/// Since blocks are flattened during indexing, we only need to extract the
+/// immediate body.declarations list from methods and constructors.
+/// For classes, we recursively extract from all members and static initializers.
+List<Declaration> getBodyDeclarations(Declaration? declaration) {
+  return switch (declaration) {
+    null ||
+    FieldMember() ||
+    EnumValueMember() ||
+    IndexedVariable() ||
+    IndexedInterface() ||
+    IndexedEnum() => const [],
+
+    // Declarations with body
+    ConstructorDeclaration(:final body) ||
+    MethodDeclaration(:final body) => body.declarations,
+
+    IndexedClass() => [
+      ...declaration.members,
+      ...declaration.members.expand(getBodyDeclarations),
+      ...declaration.staticInitializers.expand((s) => s.declarations),
+    ],
+  };
 }
