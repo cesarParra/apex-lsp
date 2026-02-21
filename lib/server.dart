@@ -121,6 +121,13 @@ final class Server {
             message: 'Parse error',
             data: errorMessage,
           );
+        case MethodNotFoundResult(:final requestId, :final method):
+          // Send JSON-RPC MethodNotFound response per spec.
+          await _output.sendError(
+            id: requestId,
+            code: JsonRpcErrorCode.methodNotFound.code,
+            message: "Unknown method '$method'",
+          );
         case ParsedMessage(:final message):
           switch (message) {
             case RequestMessage():

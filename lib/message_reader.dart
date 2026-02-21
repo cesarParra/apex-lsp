@@ -24,6 +24,14 @@ final class ParseErrorResult extends MessageParseResult {
   ParseErrorResult({required this.requestId, required this.errorMessage});
 }
 
+/// Method not found error for unknown JSON-RPC methods.
+final class MethodNotFoundResult extends MessageParseResult {
+  final Object requestId;
+  final String method;
+
+  MethodNotFoundResult({required this.requestId, required this.method});
+}
+
 /// Reads and parses Language Server Protocol messages from a byte stream.
 ///
 /// This class handles the LSP message framing protocol, which consists of
@@ -134,12 +142,16 @@ final class MessageReader {
           case ParseErrorResult():
             // Yield parse error immediately so server can respond.
             yield parseResult;
+          case MethodNotFoundResult():
+            // Yield method not found error so server can respond.
+            yield parseResult;
           case ParsedMessage(:final message):
             // Try to parse into a typed message.
-            final typedMessage = _parseJsonRpcMessage(message);
-            if (typedMessage != null) {
-              yield ParsedMessage(typedMessage);
+            final messageResult = _parseJsonRpcMessage(message);
+            if (messageResult != null) {
+              yield messageResult;
             }
+          // Note: null means silently ignored (e.g., unknown $/notifications)
         }
       }
     }
@@ -248,7 +260,7 @@ final class MessageReader {
     return int.tryParse(idText);
   }
 
-  /// Parses a decoded JSON object into a typed LSP message.
+  /// Parses a decoded JSON object into a typed LSP message or error result.
   ///
   /// Validates JSON-RPC 2.0 format and routes the message to the appropriate
   /// message type based on the `method` field and presence of `id`.
@@ -260,8 +272,10 @@ final class MessageReader {
   /// - Messages with `method` but no `id` are notifications
   /// - Responses (with `id` but no `method`) are currently ignored
   ///
-  /// Returns the parsed message, or `null` if the message is invalid,
-  /// unsupported, or malformed.
+  /// **Return values:**
+  /// - `ParsedMessage` for known/supported methods
+  /// - `MethodNotFoundResult` for unknown request methods
+  /// - `null` for unknown notifications (silently ignored per LSP spec)
   ///
   /// Supported requests:
   /// - `initialize`
@@ -274,7 +288,7 @@ final class MessageReader {
   /// - `textDocument/didOpen`
   /// - `textDocument/didChange`
   /// - `textDocument/didClose`
-  static IncomingMessage? _parseJsonRpcMessage(Object decoded) {
+  static MessageParseResult? _parseJsonRpcMessage(Object decoded) {
     if (decoded is! Map) return null;
 
     final jsonrpc = decoded['jsonrpc'];
@@ -292,7 +306,7 @@ final class MessageReader {
     if (hasMethod && hasId && id != null) {
       Object idAsObject = id as Object;
       final rawParams = decoded['params'];
-      return switch (method) {
+      final incomingMessage = switch (method) {
         'initialize' => InitializeRequest(
           idAsObject,
           InitializedParams.fromJson(rawParams as Map<String, dynamic>),
@@ -307,10 +321,17 @@ final class MessageReader {
         },
         _ => null,
       };
+
+      if (incomingMessage != null) {
+        return ParsedMessage(incomingMessage);
+      }
+
+      // Unknown request method - return MethodNotFound error.
+      return MethodNotFoundResult(requestId: idAsObject, method: method);
     } else if (hasMethod && (!hasId || id == null)) {
       final rawParams = decoded['params'];
 
-      return switch (method) {
+      final incomingMessage = switch (method) {
         'initialized' => InitializedMessage(),
         'exit' => ExitMessage(),
 
@@ -337,6 +358,14 @@ final class MessageReader {
 
         _ => null,
       };
+
+      if (incomingMessage != null) {
+        return ParsedMessage(incomingMessage);
+      }
+
+      // Unknown notification - silently ignore per LSP spec.
+      // (Client can send $/notifications we don't support.)
+      return null;
     }
 
     // TODO: Responses are ignored by servers in this minimal implementation,

@@ -22,7 +22,7 @@ void main() {
       await deleteTestWorkspace(workspace);
     });
 
-    group('Story 1.1: ParseError (-32700)', () {
+    group('ParseError (-32700)', () {
       test('returns ParseError for malformed JSON', () async {
         // Build a properly framed message with invalid JSON body.
         final malformedJson = '{invalid json}';
@@ -87,6 +87,71 @@ void main() {
 
         expect(response, isLspError(-32700));
         expect(response['id'], isNull);
+      });
+    });
+
+    group(r'MethodNotFound (-32601) for unknown $/ requests', () {
+      test(r'returns MethodNotFound for unknown $/request', () async {
+        final response = await client.sendRawRequest(
+          method: r'$/unknownRequest',
+          params: {'foo': 'bar'},
+        );
+
+        expect(response, isLspError(-32601));
+        final error = response['error'] as Map<String, Object?>;
+        final message = error['message'] as String;
+        expect(message, contains('Unknown method'));
+        expect(message, contains(r'$/unknownRequest'));
+      });
+
+      test(r'silently ignores unknown $/notification', () async {
+        // Send an unknown $/notification - should be silently ignored.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'method': r'$/unknownNotification',
+          'params': {'foo': 'bar'},
+        });
+
+        // Wait a bit to ensure server doesn't crash or send error.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        // Verify server is still responsive by sending a valid request.
+        final response = await client.sendRawRequest(method: 'shutdown');
+
+        expect(response['result'], isNull);
+        expect(response.containsKey('error'), isFalse);
+      });
+    });
+
+    group(r'MethodNotFound (-32601) for unknown non-$/ methods', () {
+      test('returns MethodNotFound for unknown request method', () async {
+        final response = await client.sendRawRequest(
+          method: 'unknownMethod',
+          params: {'foo': 'bar'},
+        );
+
+        expect(response, isLspError(-32601));
+        final error = response['error'] as Map<String, Object?>;
+        final message = error['message'] as String;
+        expect(message, contains('Unknown method'));
+        expect(message, contains('unknownMethod'));
+      });
+
+      test('returns MethodNotFound for unsupported LSP method', () async {
+        // A real LSP method that we don't support yet.
+        final response = await client.sendRawRequest(
+          method: 'textDocument/hover',
+          params: {
+            'textDocument': {'uri': 'file:///test.cls'},
+            'position': {'line': 0, 'character': 0},
+          },
+        );
+
+        expect(response, isLspError(-32601));
+        final error = response['error'] as Map<String, Object?>;
+        final message = error['message'] as String;
+        expect(message, contains('Unknown method'));
+        expect(message, contains('textDocument/hover'));
       });
     });
   });
