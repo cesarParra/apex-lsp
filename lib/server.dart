@@ -4,9 +4,12 @@ import 'dart:io';
 import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
+import 'package:apex_lsp/hover/hover_formatter.dart';
+import 'package:apex_lsp/hover/symbol_resolver.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
+import 'package:apex_lsp/utils/text_utils.dart';
 
 import 'lsp_out.dart';
 import 'message.dart';
@@ -184,6 +187,8 @@ final class Server {
           params: params,
           localIndexer: _localIndexer,
         );
+      case HoverRequest(:final id, :final params):
+        await _onHover(id: id, params: params, localIndexer: _localIndexer);
       case UnknownRequest(:final id, :final method):
         await _output.sendError(
           id: id,
@@ -309,6 +314,7 @@ final class Server {
         'completionProvider': <String, Object?>{
           'triggerCharacters': ['.'],
         },
+        'hoverProvider': true,
       },
       // TODO: Get from dynamic JSON or pubspec or something like that
       'serverInfo': <String, Object?>{'name': 'apex-lsp', 'version': '0.0.1'},
@@ -357,5 +363,45 @@ final class Server {
       log: (message) => logMessage(MessageType.log, '[apex-lsp] $message'),
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
+  }
+
+  /// Handles the LSP `textDocument/hover` request.
+  ///
+  /// Resolves the symbol at the cursor position by parsing the document with
+  /// the local indexer and searching the combined index, then formats a
+  /// markdown hover response. Returns `null` if no symbol is found.
+  ///
+  /// - [id]: The request ID to include in the response.
+  /// - [params]: Contains the document URI and cursor position.
+  /// - [localIndexer]: Used to parse and index the current document.
+  Future<void> _onHover({
+    required Object id,
+    required HoverParams params,
+    required LocalIndexer localIndexer,
+  }) async {
+    final text = _openDocuments.get(params.textDocument.uri);
+    if (text == null) {
+      await _output.sendResponse(id: id, result: null);
+      return;
+    }
+
+    final localIndex = localIndexer.parseAndIndex(text);
+    final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
+    final index = [...localIndex, ...workspaceTypes];
+
+    final cursorOffset = offsetAtPosition(
+      text: text,
+      line: params.position.line,
+      character: params.position.character,
+    );
+
+    final resolved = resolveSymbolAt(
+      cursorOffset: cursorOffset,
+      text: text,
+      index: index,
+    );
+
+    final result = resolved != null ? formatHover(resolved).toJson() : null;
+    await _output.sendResponse(id: id, result: result);
   }
 }

@@ -4,6 +4,7 @@ import 'package:apex_lsp/completion/rank.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
+import 'package:apex_lsp/utils/text_utils.dart';
 
 /// Base class for all completion candidates.
 ///
@@ -176,7 +177,7 @@ Future<CompletionList> onCompletion({
     return CompletionList(isIncomplete: false, items: <CompletionItem>[]);
   }
 
-  final cursorOffset = _offsetAtPosition(
+  final cursorOffset = offsetAtPosition(
     text: text,
     line: position.line,
     character: position.character,
@@ -300,50 +301,6 @@ Future<CompletionList> onCompletion({
   );
 
   return CompletionList(isIncomplete: isIncomplete, items: rankedItems);
-}
-
-/// Converts a line and character position to a byte offset within the text.
-///
-/// This utility function calculates the zero-based byte offset corresponding to
-/// a given line and character position in a multiline text string. Lines are
-/// assumed to be separated by `\n` characters.
-///
-/// - [text]: The complete text content to calculate offsets within.
-/// - [line]: Zero-based line number.
-/// - [character]: Zero-based character position within the line.
-///
-/// Returns the byte offset as an integer. If the line number is negative,
-/// returns 0. If the line number exceeds the text length, returns the length
-/// of the text. The character position is clamped to the line's length.
-///
-/// Example:
-/// ```dart
-/// final offset = _offsetAtPosition(
-///   text: 'Hello\nWorld',
-///   line: 1,      // Second line
-///   character: 2, // Third character ('r')
-/// );
-/// print(offset); // 8 (6 for 'Hello\n' + 2 for 'Wo')
-/// ```
-int _offsetAtPosition({
-  required String text,
-  required int line,
-  required int character,
-}) {
-  if (line < 0) return 0;
-
-  final lines = text.split('\n');
-  if (lines.isEmpty) return 0;
-  if (line >= lines.length) return text.length;
-
-  var offset = 0;
-  for (var i = 0; i < line; i++) {
-    offset += lines[i].length + 1;
-  }
-
-  final lineText = lines[line];
-  final clamped = character.clamp(0, lineText.length).toInt();
-  return offset + clamped;
 }
 
 /// Determines if a completion candidate potentially matches the completion context.

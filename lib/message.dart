@@ -33,6 +33,24 @@ int messageTypeToJson(MessageType type) => type.code;
 MessageType messageTypeFromJson(int code) =>
     MessageType.values.firstWhere((t) => t.code == code);
 
+/// LSP markup kinds for hover and documentation content.
+///
+/// Maps to the `MarkupKind` string constants defined in the LSP specification.
+enum MarkupKind {
+  /// Plain text content (no formatting).
+  plaintext(value: 'plaintext'),
+
+  /// GitHub-flavoured markdown content.
+  markdown(value: 'markdown');
+
+  const MarkupKind({required this.value});
+
+  /// The string value as defined by the LSP specification.
+  final String value;
+}
+
+String markupKindToJson(MarkupKind kind) => kind.value;
+
 /// LSP completion item kinds mapped to their protocol integer values.
 ///
 /// Only includes the kinds used by this server. See the LSP specification
@@ -337,6 +355,91 @@ final class CompletionList {
   String toString() {
     return 'CompletionList{isIncomplete: $isIncomplete, items: $items}';
   }
+}
+
+/// Parameters for a `textDocument/hover` request.
+///
+/// Contains the document and cursor position where hover was triggered.
+///
+/// See also:
+///  * [HoverRequest], which uses these parameters.
+///  * [Hover], the response type.
+@JsonSerializable()
+final class HoverParams {
+  /// The text document where hover was requested.
+  final TextDocumentIdentifierWithUri textDocument;
+
+  /// The cursor position where hover was triggered.
+  final Position position;
+
+  const HoverParams({required this.textDocument, required this.position});
+
+  factory HoverParams.fromJson(Map<String, Object?> json) =>
+      _$HoverParamsFromJson(json);
+
+  Map<String, Object?> toJson() => _$HoverParamsToJson(this);
+}
+
+/// LSP `textDocument/hover` request.
+///
+/// Sent by the client to request hover information at a specific cursor
+/// position in a text document.
+///
+/// The server responds with a [Hover] object or `null` if no information
+/// is available at the given position.
+final class HoverRequest extends RequestMessageWithParams<HoverParams> {
+  @override
+  String get method => 'textDocument/hover';
+
+  const HoverRequest(super.id, super.params);
+}
+
+/// The content of a hover response in a specific format.
+///
+/// Used to provide hover text with explicit markup type (markdown or
+/// plain text). The LSP specification allows either a plain string or
+/// a [MarkupContent] object.
+@JsonSerializable(createFactory: false)
+final class MarkupContent {
+  /// The markup kind — either [MarkupKind.plaintext] or [MarkupKind.markdown].
+  @JsonKey(toJson: markupKindToJson)
+  final MarkupKind kind;
+
+  /// The actual hover text content.
+  final String value;
+
+  const MarkupContent({required this.kind, required this.value});
+
+  Map<String, Object?> toJson() => _$MarkupContentToJson(this);
+}
+
+/// Response to a `textDocument/hover` request.
+///
+/// Contains the hover content to display and an optional range to highlight
+/// in the source. When [contents] is the empty string or `null`, the client
+/// should show nothing.
+@JsonSerializable(createFactory: false, includeIfNull: false)
+final class Hover {
+  /// The hover content to display, in markdown format.
+  final MarkupContent contents;
+
+  /// Optional range in the document to highlight when hover is shown.
+  final Range? range;
+
+  const Hover({required this.contents, this.range});
+
+  Map<String, Object?> toJson() => _$HoverToJson(this);
+}
+
+/// A range in a text document expressed as start and end positions.
+@JsonSerializable(createFactory: false)
+final class Range {
+  final Position start;
+  final Position end;
+
+  const Range({required this.start, required this.end});
+
+  Map<String, Object?> toJson() => _$RangeToJson(this);
 }
 
 /// LSP `initialize` request.
