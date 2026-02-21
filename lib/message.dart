@@ -433,6 +433,54 @@ sealed class IncomingNotificationMessageWithParams<TParams>
   const IncomingNotificationMessageWithParams();
 }
 
+/// Base class for response messages from the client to server-initiated requests.
+///
+/// When the server sends a request to the client (like `window/workDoneProgress/create`),
+/// the client responds with either a success or error response. These responses
+/// include the same `id` as the original request.
+///
+/// See also:
+///  * [ClientSuccessResponse], for successful responses with a result.
+///  * [ClientErrorResponse], for error responses.
+sealed class ClientResponse extends IncomingMessage {
+  /// The request identifier from the original server request.
+  final Object id;
+
+  const ClientResponse(this.id);
+}
+
+/// Successful response from the client to a server-initiated request.
+///
+/// Contains a `result` field with the response data (may be null for void responses).
+final class ClientSuccessResponse extends ClientResponse {
+  /// The result of the request (may be null for void responses).
+  final Object? result;
+
+  const ClientSuccessResponse({required Object id, required this.result})
+    : super(id);
+
+  @override
+  String toString() {
+    return 'ClientSuccessResponse{id: $id, result: $result}';
+  }
+}
+
+/// Error response from the client to a server-initiated request.
+///
+/// Contains an `error` object with code, message, and optional data.
+final class ClientErrorResponse extends ClientResponse {
+  /// The error information.
+  final ResponseError error;
+
+  const ClientErrorResponse({required Object id, required this.error})
+    : super(id);
+
+  @override
+  String toString() {
+    return 'ClientErrorResponse{id: $id, error: $error}';
+  }
+}
+
 /// LSP `initialized` notification.
 ///
 /// Sent by the client after receiving the response to an [InitializeRequest].

@@ -375,8 +375,38 @@ final class MessageReader {
       return null;
     }
 
-    // TODO: Responses are ignored by servers in this minimal implementation,
-    // let's handle them (and avoid returning null)
+    // Handle responses (have id but no method).
+    // These are client responses to server-initiated requests.
+    if (hasId && !hasMethod && id != null) {
+      final Object idAsObject = id as Object;
+      final hasResult = decoded.containsKey('result');
+      final hasError = decoded.containsKey('error');
+
+      // Response must have either result or error, not both.
+      if (hasResult && !hasError) {
+        final result = decoded['result'];
+        return ParsedMessage(
+          ClientSuccessResponse(id: idAsObject, result: result),
+        );
+      } else if (hasError && !hasResult) {
+        final errorData = decoded['error'];
+        if (errorData is Map) {
+          final code = errorData['code'] as int?;
+          final message = errorData['message'] as String?;
+          final data = errorData['data'];
+          if (code != null && message != null) {
+            return ParsedMessage(
+              ClientErrorResponse(
+                id: idAsObject,
+                error: ResponseError(code, message, data),
+              ),
+            );
+          }
+        }
+      }
+    }
+
+    // Malformed response or unrecognized message structure.
     return null;
   }
 

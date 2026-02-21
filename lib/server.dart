@@ -138,6 +138,8 @@ final class Server {
               await _handleRequest(message);
             case IncomingNotificationMessage():
               await _handleNotification(message);
+            case ClientResponse():
+              await _handleClientResponse(message);
           }
       }
     }
@@ -261,6 +263,28 @@ final class Server {
         await logMessage(
           MessageType.error,
           'LSP not initiazed. Received ${note.method}',
+        );
+    }
+  }
+
+  /// Handles client responses to server-initiated requests.
+  ///
+  /// When the server sends a request to the client (like `window/workDoneProgress/create`),
+  /// the client responds with either a success or error response. This method logs
+  /// the response for debugging purposes.
+  ///
+  /// - [response]: The client response message.
+  Future<void> _handleClientResponse(ClientResponse response) async {
+    switch (response) {
+      case ClientSuccessResponse(:final id, :final result):
+        await logMessage(
+          MessageType.log,
+          '[apex-lsp] Client response to request $id: success (result=$result)',
+        );
+      case ClientErrorResponse(:final id, :final error):
+        await logMessage(
+          MessageType.warning,
+          '[apex-lsp] Client response to request $id: error ${error.code} - ${error.message}',
         );
     }
   }

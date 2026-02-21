@@ -225,5 +225,55 @@ void main() {
         expect(shutdownResponse.containsKey('result'), isTrue);
       });
     });
+
+    group('Client Response Parsing', () {
+      test('parses and handles successful client response', () async {
+        await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+
+        // Client responds to a server request (like window/workDoneProgress/create)
+        // with a success response.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'id': 'test-request-123',
+          'result': null,
+        });
+
+        // Server should parse it without errors (verify via logs or no crash).
+        // Since responses are just logged for now, we just verify no error.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        // Server should still be responsive.
+        final shutdownResponse = await client.sendRawRequest(
+          method: 'shutdown',
+        );
+        expect(shutdownResponse.containsKey('result'), isTrue);
+      });
+
+      test('parses and handles error client response', () async {
+        await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+
+        // Client responds with an error.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'id': 'test-request-456',
+          'error': {'code': -32601, 'message': 'Method not found'},
+        });
+
+        // Server should parse it without crashing.
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        // Server should still be responsive.
+        final shutdownResponse = await client.sendRawRequest(
+          method: 'shutdown',
+        );
+        expect(shutdownResponse.containsKey('result'), isTrue);
+      });
+    });
   });
 }
