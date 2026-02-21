@@ -308,6 +308,13 @@ final class MessageReader {
           ),
           _ => null,
         },
+        'textDocument/hover' => switch (rawParams) {
+          final Map<String, Object?> paramsJson => HoverRequest(
+            idAsObject,
+            HoverParams.fromJson(paramsJson),
+          ),
+          _ => null,
+        },
         _ => null,
       };
 

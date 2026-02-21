@@ -183,7 +183,7 @@ void main() {
       test('returns MethodNotFound for unsupported LSP method', () async {
         // A real LSP method that we don't support yet.
         final response = await client.sendRawRequest(
-          method: 'textDocument/hover',
+          method: 'textDocument/definition',
           params: {
             'textDocument': {'uri': 'file:///test.cls'},
             'position': {'line': 0, 'character': 0},
@@ -194,7 +194,7 @@ void main() {
         final error = response['error'] as Map<String, Object?>;
         final message = error['message'] as String;
         expect(message, contains('Unknown method'));
-        expect(message, contains('textDocument/hover'));
+        expect(message, contains('textDocument/definition'));
       });
     });
 

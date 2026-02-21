@@ -146,6 +146,35 @@ final class LspClient {
     return _parseCompletionList(result);
   }
 
+  /// Sends a `textDocument/hover` request and returns the parsed hover result.
+  ///
+  /// Returns the `contents.value` string from the hover response, or `null`
+  /// if the server returned no hover information for the given position.
+  Future<String?> hover({
+    required String uri,
+    required int line,
+    required int character,
+  }) async {
+    final id = _nextId++;
+    input.addFrame(
+      jsonRpcRequest(
+        id: id,
+        method: 'textDocument/hover',
+        params: {
+          'textDocument': {'uri': uri},
+          'position': {'line': line, 'character': character},
+        },
+      ),
+    );
+
+    final response = await _waitForResponse(id: id);
+    final result = response['result'];
+    if (result == null) return null;
+    final map = result as Map<String, Object?>;
+    final contents = map['contents'] as Map<String, Object?>?;
+    return contents?['value'] as String?;
+  }
+
   /// Sends an arbitrary JSON-RPC request and returns the full response map.
   ///
   /// Useful for testing error cases where the response includes an `error`

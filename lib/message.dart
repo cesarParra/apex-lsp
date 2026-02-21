@@ -339,6 +339,90 @@ final class CompletionList {
   }
 }
 
+/// Parameters for a `textDocument/hover` request.
+///
+/// Contains the document and cursor position where hover was triggered.
+///
+/// See also:
+///  * [HoverRequest], which uses these parameters.
+///  * [Hover], the response type.
+@JsonSerializable()
+final class HoverParams {
+  /// The text document where hover was requested.
+  final TextDocumentIdentifierWithUri textDocument;
+
+  /// The cursor position where hover was triggered.
+  final Position position;
+
+  const HoverParams({required this.textDocument, required this.position});
+
+  factory HoverParams.fromJson(Map<String, Object?> json) =>
+      _$HoverParamsFromJson(json);
+
+  Map<String, Object?> toJson() => _$HoverParamsToJson(this);
+}
+
+/// LSP `textDocument/hover` request.
+///
+/// Sent by the client to request hover information at a specific cursor
+/// position in a text document.
+///
+/// The server responds with a [Hover] object or `null` if no information
+/// is available at the given position.
+final class HoverRequest extends RequestMessageWithParams<HoverParams> {
+  @override
+  String get method => 'textDocument/hover';
+
+  const HoverRequest(super.id, super.params);
+}
+
+/// The content of a hover response in a specific format.
+///
+/// Used to provide hover text with explicit markup type (markdown or
+/// plain text). The LSP specification allows either a plain string or
+/// a [MarkupContent] object.
+@JsonSerializable(createFactory: false)
+final class MarkupContent {
+  /// The markup kind. Typically `'markdown'` or `'plaintext'`.
+  final String kind;
+
+  /// The actual hover text content.
+  final String value;
+
+  const MarkupContent({required this.kind, required this.value});
+
+  Map<String, Object?> toJson() => _$MarkupContentToJson(this);
+}
+
+/// Response to a `textDocument/hover` request.
+///
+/// Contains the hover content to display and an optional range to highlight
+/// in the source. When [contents] is the empty string or `null`, the client
+/// should show nothing.
+@JsonSerializable(createFactory: false, includeIfNull: false)
+final class Hover {
+  /// The hover content to display, in markdown format.
+  final MarkupContent contents;
+
+  /// Optional range in the document to highlight when hover is shown.
+  final Range? range;
+
+  const Hover({required this.contents, this.range});
+
+  Map<String, Object?> toJson() => _$HoverToJson(this);
+}
+
+/// A range in a text document expressed as start and end positions.
+@JsonSerializable(createFactory: false)
+final class Range {
+  final Position start;
+  final Position end;
+
+  const Range({required this.start, required this.end});
+
+  Map<String, Object?> toJson() => _$RangeToJson(this);
+}
+
 /// LSP `initialize` request.
 ///
 /// The first request sent from client to server to initialize the LSP session.
