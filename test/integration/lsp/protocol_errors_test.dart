@@ -154,5 +154,76 @@ void main() {
         expect(message, contains('textDocument/hover'));
       });
     });
+
+    group(r'RequestCancelled (-32800) for $/cancelRequest', () {
+      test('registers cancellation for future requests', () async {
+        // Initialize first.
+        await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+
+        final requestId = 999;
+
+        // Send cancellation BEFORE the request.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'method': r'$/cancelRequest',
+          'params': {'id': requestId},
+        });
+
+        // Then send the request - should be immediately cancelled.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'id': requestId,
+          'method': 'shutdown',
+        });
+
+        // Server should send RequestCancelled error.
+        final response = await client.waitForAnyResponse(
+          timeout: const Duration(seconds: 2),
+        );
+
+        expect(response, isLspError(-32800));
+        expect(response['id'], equals(requestId));
+      });
+
+      test('handles cancellation after request completes', () async {
+        // Initialize first so completion can work.
+        await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+
+        // Send and complete a request.
+        final requestId = 888;
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'id': requestId,
+          'method': 'shutdown',
+        });
+
+        final response = await client.waitForAnyResponse(
+          timeout: const Duration(seconds: 2),
+        );
+        expect(response['id'], equals(requestId));
+        expect(response.containsKey('result'), isTrue);
+
+        // Send cancellation after completion - should be silently ignored.
+        client.input.addFrame({
+          'jsonrpc': '2.0',
+          'method': r'$/cancelRequest',
+          'params': {'id': requestId},
+        });
+
+        // Wait a bit and verify server is still responsive.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        final shutdownResponse = await client.sendRawRequest(
+          method: 'shutdown',
+        );
+        expect(shutdownResponse.containsKey('result'), isTrue);
+      });
+    });
   });
 }

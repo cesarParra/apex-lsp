@@ -335,6 +335,13 @@ final class MessageReader {
         'initialized' => InitializedMessage(),
         'exit' => ExitMessage(),
 
+        r'$/cancelRequest' => switch (rawParams) {
+          final Map<String, Object?> paramsJson => CancelRequestNotification(
+            CancelRequestParams.fromJson(paramsJson),
+          ),
+          _ => null,
+        },
+
         'textDocument/didOpen' => switch (rawParams) {
           final Map<String, Object?> paramsJson => TextDocumentDidOpenMessage(
             DidOpenTextDocumentParams.fromJson(paramsJson),

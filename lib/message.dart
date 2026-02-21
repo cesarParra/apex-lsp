@@ -535,6 +535,33 @@ class TextDocumentDidCloseMessage
   const TextDocumentDidCloseMessage(this.params);
 }
 
+/// LSP `$/cancelRequest` notification.
+///
+/// Sent by the client to cancel a previously sent request. The server should
+/// stop processing the request if possible and return a RequestCancelled error.
+class CancelRequestNotification
+    extends IncomingNotificationMessageWithParams<CancelRequestParams> {
+  @override
+  String get method => r'$/cancelRequest';
+
+  @override
+  final CancelRequestParams params;
+
+  const CancelRequestNotification(this.params);
+}
+
+@JsonSerializable()
+final class CancelRequestParams {
+  final Object id;
+
+  const CancelRequestParams({required this.id});
+
+  factory CancelRequestParams.fromJson(Map<String, Object?> json) =>
+      _$CancelRequestParamsFromJson(json);
+
+  Map<String, Object?> toJson() => _$CancelRequestParamsToJson(this);
+}
+
 @JsonSerializable()
 final class DidCloseTextDocumentParams {
   final TextDocumentIdentifier textDocument;

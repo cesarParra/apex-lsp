@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
@@ -55,12 +56,14 @@ final class Server {
     required OpenDocuments openDocuments,
     required LocalIndexer localIndexer,
     required WorkspaceIndexer workspaceIndexer,
+    required CancellationTracker cancellationTracker,
   }) : _output = output,
        _reader = reader,
        _exitFn = exitFn,
        _openDocuments = openDocuments,
        _localIndexer = localIndexer,
-       _workspaceIndexer = workspaceIndexer;
+       _workspaceIndexer = workspaceIndexer,
+       _cancellationTracker = cancellationTracker;
 
   final LspOut _output;
   final MessageReader _reader;
@@ -69,6 +72,7 @@ final class Server {
   final OpenDocuments _openDocuments;
   final LocalIndexer _localIndexer;
   final WorkspaceIndexer _workspaceIndexer;
+  final CancellationTracker _cancellationTracker;
   IndexRepository? _indexRepository;
 
   InitializationStatus _initializationStatus = NotInitialized();
@@ -150,6 +154,16 @@ final class Server {
   /// Returns an error response if the server is not initialized and the request
   /// is not `initialize` or `shutdown`.
   Future<void> _handleRequest(RequestMessage req) async {
+    // Check if request has been cancelled
+    if (_cancellationTracker.isCancelled(req.id)) {
+      await _output.sendError(
+        id: req.id,
+        code: JsonRpcErrorCode.requestCancelled.code,
+        message: 'Request cancelled',
+      );
+      return;
+    }
+
     switch (_initializationStatus) {
       case NotInitialized():
         if (req.method != 'initialize' && req.method != 'shutdown') {
@@ -226,6 +240,9 @@ final class Server {
             _openDocuments.didChange(params);
           case TextDocumentDidCloseMessage(:final params):
             _openDocuments.didClose(params);
+
+          case CancelRequestNotification(:final params):
+            _cancellationTracker.cancel(params.id);
 
           case ExitMessage():
             // Spec: If exit is received and shutdown has been requested -> exit 0,
