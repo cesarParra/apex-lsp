@@ -643,6 +643,19 @@ void main() {
       expect(completionList.items.first.label, 'instanceMember');
     });
 
+    test('does not autocomplete constructors', () async {
+      final classType = IndexedClass(
+        DeclarationName('Foo'),
+        members: [ConstructorDeclaration(body: Block.empty())],
+      );
+      final completionList = await complete(
+        extractCursorPosition('Foo.{cursor}'),
+        index: [classType],
+      );
+
+      expect(completionList.items, isEmpty);
+    });
+
     test('autocomplete static class methods', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
@@ -659,14 +672,9 @@ void main() {
           ),
         ],
       );
-      final localVariable = IndexedVariable(
-        DeclarationName('myFoo'),
-        typeName: DeclarationName('Foo'),
-        location: (0, 10),
-      );
       final completionList = await complete(
         extractCursorPosition('Foo.{cursor}'),
-        index: [classType, localVariable],
+        index: [classType],
       );
 
       expect(completionList.items, hasLength(1));
