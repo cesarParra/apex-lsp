@@ -1,3 +1,4 @@
+import 'package:apex_lsp/completion/apex_keywords.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/message.dart';
@@ -12,11 +13,13 @@ void main() {
   Future<CompletionList> complete(
     TextWithPosition textWithPosition, {
     required List<Declaration> index,
+    List<CompletionDataSource>? sources,
   }) {
     return onCompletion(
       text: textWithPosition.text,
       position: textWithPosition.position,
       index: index,
+      sources: sources ?? [declarationSource(index)],
     );
   }
 
@@ -1313,6 +1316,100 @@ void main() {
       );
 
       expect(completionList, completionWithDetail('SPRING', 'Season'));
+    });
+  });
+
+  group('keywords', () {
+    test('suggests keywords at the top level of an empty file', () async {
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [],
+        sources: [keywordSource],
+      );
+
+      // With no prefix the full list exceeds maxCompletionItems, so the result
+      // is marked incomplete and only the top-ranked items are returned.
+      expect(completionList.isIncomplete, isTrue);
+      expect(completionList, containsCompletion('if'));
+      expect(completionList, containsCompletion('for'));
+      expect(completionList, containsCompletion('while'));
+    });
+
+    test('all keywords are reachable when narrowed by prefix', () async {
+      // Verify every keyword appears when filtered by a unique-enough prefix.
+      for (final keyword in apexKeywords) {
+        final prefix = keyword.substring(0, 2);
+        final completionList = await complete(
+          extractCursorPosition('$prefix{cursor}'),
+          index: [],
+          sources: [keywordSource],
+        );
+        expect(completionList, containsCompletion(keyword));
+      }
+    });
+
+    test('filters keywords by prefix', () async {
+      final completionList = await complete(
+        extractCursorPosition('fo{cursor}'),
+        index: [],
+        sources: [keywordSource],
+      );
+
+      expect(completionList, containsCompletion('for'));
+      expect(completionList, doesNotContainCompletion('if'));
+      expect(completionList, doesNotContainCompletion('while'));
+    });
+
+    test('keyword completions have keyword kind', () async {
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [],
+        sources: [keywordSource],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('for', CompletionItemKind.keyword),
+      );
+      expect(
+        completionList,
+        completionWithKind('if', CompletionItemKind.keyword),
+      );
+    });
+
+    test('keywords are not suggested after a dot operator', () async {
+      final enumType = IndexedEnum(
+        DeclarationName('Season'),
+        values: ['SPRING'.enumValueMember()],
+      );
+      final completionList = await complete(
+        extractCursorPosition('Season.{cursor}'),
+        index: [enumType],
+        sources: [
+          declarationSource([enumType]),
+          keywordSource,
+        ],
+      );
+
+      for (final keyword in apexKeywords) {
+        expect(completionList, doesNotContainCompletion(keyword));
+      }
+    });
+
+    test('keywords and declarations can be combined as sources', () async {
+      final enumType = IndexedEnum(DeclarationName('Season'), values: []);
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [enumType],
+        sources: [
+          declarationSource([enumType]),
+          keywordSource,
+        ],
+      );
+
+      expect(completionList, containsCompletion('Season'));
+      expect(completionList, containsCompletion('if'));
+      expect(completionList, containsCompletion('for'));
     });
   });
 }
