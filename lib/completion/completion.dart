@@ -255,6 +255,7 @@ Future<CompletionList> onCompletion({
       null => <CompletionCandidate>[],
       IndexedClass() =>
         indexedType.members
+            .where((declaration) => declaration.isVisibleAt(cursorOffset))
             .where((member) => isStaticAccess == _isStaticDeclaration(member))
             .map((member) => MemberCandidate(member, parentType: indexedType))
             .toList(),
