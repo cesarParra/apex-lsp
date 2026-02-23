@@ -1,3 +1,4 @@
+import 'package:apex_lsp/completion/apex_keywords.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:test/test.dart';
 
@@ -557,7 +558,7 @@ g.{cursor}''');
       expect(completions, containsCompletions(['greet', 'sayGoodbye']));
     });
 
-    test('returns empty completions for empty context', () async {
+    test('returns only keyword completions for empty document', () async {
       const text = '';
       final document = Document.withText(text);
       await client.openDocument(document);
@@ -568,7 +569,10 @@ g.{cursor}''');
         character: 0,
       );
 
-      expect(completions, hasNoCompletions);
+      // No declarations exist, so only keywords are returned.
+      expect(completions, containsCompletion('if'));
+      expect(completions, containsCompletion('for'));
+      expect(completions, containsCompletion('while'));
     });
 
     test('completions update after document change', () async {
@@ -775,6 +779,85 @@ a.{cursor}''');
             description: 'String',
           ),
         );
+      });
+    });
+
+    group('keywords', () {
+      test('suggests keywords at the top level of a file', () async {
+        final textWithPosition = extractCursorPosition('{cursor}');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        // With no prefix the full keyword list exceeds maxCompletionItems, so
+        // the list is marked incomplete and top-ranked keywords are returned.
+        expect(completions.isIncomplete, isTrue);
+        expect(completions, containsCompletion('if'));
+        expect(completions, containsCompletion('for'));
+        expect(completions, containsCompletion('while'));
+      });
+
+      test('filters keywords by prefix', () async {
+        final textWithPosition = extractCursorPosition('fo{cursor}');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        expect(completions, containsCompletion('for'));
+        expect(completions, doesNotContainCompletion('if'));
+        expect(completions, doesNotContainCompletion('while'));
+      });
+
+      test('keyword completions have keyword kind', () async {
+        final textWithPosition = extractCursorPosition('{cursor}');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        expect(
+          completions,
+          completionWithKind('for', CompletionItemKind.keyword),
+        );
+        expect(
+          completions,
+          completionWithKind('if', CompletionItemKind.keyword),
+        );
+      });
+
+      test('keywords are not suggested after a dot operator', () async {
+        final textWithPosition = extractCursorPosition('''
+public class Animal {
+  String name;
+}
+Animal a;
+a.{cursor}''');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        for (final keyword in apexKeywords) {
+          expect(completions, doesNotContainCompletion(keyword));
+        }
       });
     });
   });

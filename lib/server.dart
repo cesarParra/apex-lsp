@@ -356,10 +356,12 @@ final class Server {
       'workspaceTypes=${workspaceTypes.length}',
     );
 
+    final index = [...localIndex, ...workspaceTypes];
     final completionList = await onCompletion(
       text: text,
       position: params.position,
-      index: [...localIndex, ...workspaceTypes],
+      index: index,
+      sources: [declarationSource(index), keywordSource],
       log: (message) => logMessage(MessageType.log, '[apex-lsp] $message'),
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
