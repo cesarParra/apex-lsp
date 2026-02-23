@@ -27,19 +27,22 @@ void main() {
       await deleteTestWorkspace(workspace);
     });
 
-    test('returns no completions when workspace has no classes', () async {
-      final textWithPosition = extractCursorPosition('{cursor}');
-      final document = Document.withText(textWithPosition.text);
-      await client.openDocument(document);
+    test(
+      'returns no declaration completions when workspace has no classes',
+      () async {
+        final textWithPosition = extractCursorPosition('{cursor}');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
 
-      final completions = await client.completion(
-        uri: document.uri,
-        line: textWithPosition.position.line,
-        character: textWithPosition.position.character,
-      );
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
 
-      expect(completions, hasNoCompletions);
-    });
+        expect(completions, containsCompletion('if'));
+      },
+    );
   });
 
   group('Workspace Completion with indexed types', () {

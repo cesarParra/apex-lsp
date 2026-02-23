@@ -61,6 +61,7 @@ enum CompletionItemKind {
   variable(value: 6),
   classKind(value: 7),
   interfaceKind(value: 8),
+  keyword(value: 14),
   enumKind(value: 13),
   enumMember(value: 20);
 

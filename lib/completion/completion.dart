@@ -1,3 +1,4 @@
+import 'package:apex_lsp/completion/apex_keywords.dart';
 import 'package:apex_lsp/completion/completion_context.dart';
 import 'package:apex_lsp/completion/helpers.dart';
 import 'package:apex_lsp/completion/rank.dart';
@@ -8,14 +9,8 @@ import 'package:apex_lsp/utils/text_utils.dart';
 
 /// Base class for all completion candidates.
 ///
-/// Thin wrappers around [Declaration] that categorize how a declaration
-/// should be presented as a completion suggestion. The [Declaration] itself
-/// is the source of truth for all data (name, type info, etc.).
-///
-/// See also:
-///  * [ApexTypeCandidate], for type-level completions.
-///  * [MemberCandidate], for member access completions.
-///  * [LocalVariableCandidate], for local variable completions.
+/// Thin wrappers that categorize how a declaration or keyword should be
+/// presented as a completion suggestion.
 sealed class CompletionCandidate {
   String get name;
 }
@@ -60,6 +55,147 @@ final class LocalVariableCandidate extends CompletionCandidate {
   String get name => variable.name.value;
 }
 
+/// Completion candidate for an Apex reserved keyword.
+///
+/// Keywords are offered at any top-level position, including at the file root,
+/// to support anonymous Apex where statements can appear without a wrapping
+/// class or method body.
+final class KeywordCandidate extends CompletionCandidate {
+  final String keyword;
+
+  KeywordCandidate(this.keyword);
+
+  @override
+  String get name => keyword;
+}
+
+/// A function that produces completion candidates for a given context.
+///
+/// Each data source is a pure function — given the current [CompletionContext]
+/// and [cursorOffset], it returns whatever candidates it can contribute.
+/// Multiple sources are composed by the caller, who assembles exactly the
+/// combination needed (e.g. declarations only, keywords only, or both).
+typedef CompletionDataSource =
+    List<CompletionCandidate> Function(
+      CompletionContext context,
+      int cursorOffset,
+    );
+
+/// Returns a [CompletionDataSource] that contributes candidates from [index].
+///
+/// Handles both top-level and member-access contexts:
+/// - [CompletionContextTopLevel]: maps visible declarations to the appropriate
+///   candidate subtype ([ApexTypeCandidate], [LocalVariableCandidate],
+///   [MemberCandidate]).
+/// - [CompletionContextMember]: resolves the type before the dot and returns
+///   its members.
+/// - [CompletionContextNone]: returns empty.
+///
+/// The [index] is the raw declaration list. The source expands it internally
+/// (adding body declarations for the enclosing scope) on each call.
+CompletionDataSource declarationSource(List<Declaration> index) {
+  return (context, cursorOffset) {
+    final enclosing = index.enclosingAt<Declaration>(cursorOffset);
+    final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
+    return switch (context) {
+      CompletionContextNone() => <CompletionCandidate>[],
+      CompletionContextTopLevel() => _topLevelCandidates(
+        expandedIndex,
+        cursorOffset,
+      ),
+      CompletionContextMember() => _memberCandidates(
+        expandedIndex,
+        cursorOffset,
+        context,
+      ),
+    };
+  };
+}
+
+/// A [CompletionDataSource] that contributes all Apex reserved keywords.
+///
+/// Keywords are only offered for [CompletionContextTopLevel] — they never
+/// appear after a dot operator since `foo.for` is never valid Apex.
+List<CompletionCandidate> keywordSource(
+  CompletionContext context,
+  int cursorOffset,
+) => switch (context) {
+  CompletionContextTopLevel() =>
+    apexKeywords.map(KeywordCandidate.new).toList(),
+  _ => <CompletionCandidate>[],
+};
+
+List<CompletionCandidate> _topLevelCandidates(
+  List<Declaration> index,
+  int cursorOffset,
+) => index
+    .where((declaration) => declaration.isVisibleAt(cursorOffset))
+    .map(
+      (declaration) => switch (declaration) {
+        IndexedType() => ApexTypeCandidate(declaration),
+        IndexedVariable() => LocalVariableCandidate(declaration),
+        FieldMember() ||
+        MethodDeclaration() ||
+        EnumValueMember() => MemberCandidate(
+          declaration,
+          parentType: index.enclosingAt<IndexedType>(cursorOffset),
+        ),
+        ConstructorDeclaration() => throw UnsupportedError(
+          'Autocompleting constructors is not supported at the moment',
+        ),
+      },
+    )
+    .toList();
+
+List<CompletionCandidate> _memberCandidates(
+  List<Declaration> index,
+  int cursorOffset,
+  CompletionContextMember context,
+) {
+  if (context.typeName == null) {
+    return <CompletionCandidate>[];
+  }
+
+  final typeName = DeclarationName(context.typeName!);
+
+  DeclarationName? resolveVariableType(DeclarationName name) => index
+      .whereType<IndexedVariable>()
+      .firstWhereOrNull((v) => v.name == name)
+      ?.typeName;
+
+  IndexedType? resolveQualified(DeclarationName name) {
+    final resolved = index.resolveQualifiedName(name.value);
+    return resolved is IndexedType ? resolved : null;
+  }
+
+  final indexedType =
+      index.findType(typeName) ??
+      index.findType(
+        resolveVariableType(typeName) ?? const DeclarationName(''),
+      ) ??
+      resolveQualified(typeName);
+
+  final isStaticAccess = context.objectName == context.typeName;
+
+  return switch (indexedType) {
+    null => <CompletionCandidate>[],
+    IndexedClass() =>
+      indexedType.members
+          .where((declaration) => declaration.isVisibleAt(cursorOffset))
+          .where((member) => isStaticAccess == _isStaticDeclaration(member))
+          .map((member) => MemberCandidate(member, parentType: indexedType))
+          .toList(),
+    IndexedInterface() =>
+      indexedType.methods
+          .map((method) => MemberCandidate(method, parentType: indexedType))
+          .toList(),
+    IndexedEnum() =>
+      indexedType.values
+          .map((value) => MemberCandidate(value, parentType: indexedType))
+          .toList(),
+  };
+}
+
 /// Maximum number of completion items to return to the client.
 ///
 /// When more candidates are available, the list is marked as incomplete,
@@ -75,6 +211,7 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
       CompletionItemKind.variable,
       variable.typeName.value as String?,
     ),
+    KeywordCandidate() => (CompletionItemKind.keyword, null as String?),
   };
 
   final labelDetails = switch (candidate) {
@@ -131,12 +268,17 @@ CompletionItemLabelDetails _methodLabelDetails(MethodDeclaration declaration) {
 ///
 /// Processes a completion request by analyzing the document text at the
 /// cursor position, determining the completion context (top-level type,
-/// member access, etc.), gathering candidates from the index, and ranking
+/// member access, etc.), gathering candidates from all [sources], and ranking
 /// them by relevance.
 ///
 /// - [text]: The complete document content. Returns empty list if `null`.
 /// - [position]: The cursor position (line and character) in the document.
-/// - [index]: The list of declarations from parsing the current file.
+/// - [index]: The declaration index used for context detection and scope
+///   expansion. Pass the combined local + workspace declarations.
+/// - [sources]: The data sources to gather candidates from. Each source is a
+///   [CompletionDataSource] function. Defaults to empty — pass
+///   `[declarationSource(index)]` for declaration completions,
+///   `[keywordSource]` for keyword completions, or both.
 /// - [rank]: The ranking function to sort candidates (defaults to [rankCandidates]).
 ///
 /// Returns a [CompletionList] with up to [maxCompletionItems] items. The list
@@ -144,32 +286,23 @@ CompletionItemLabelDetails _methodLabelDetails(MethodDeclaration declaration) {
 /// available, signaling the client to request updated completions as the user
 /// continues typing.
 ///
-/// **Completion contexts:**
-/// - **Top-level**: Types and local variables accessible at the current scope
-/// - **Member access**: Methods, fields, or enum values accessed via dot operator
-/// - **None**: No valid completion context detected
-///
 /// Example:
 /// ```dart
 /// final completions = await onCompletion(
 ///   text: 'Account acc = new Acc',
 ///   position: Position(line: 0, character: 21),
 ///   index: localIndexer.parseAndIndex(text),
+///   sources: [declarationSource(index), keywordSource],
 /// );
 /// // Returns completions like ['Account']
 /// ```
-///
-/// See also:
-///  * [ContextDetector], which determines the completion context.
-///  * [rankCandidates], which applies Levenshtein-based ranking.
-///  * [LocalIndexer], which provides the declaration index.
-/// Optional logging callback for completion diagnostics.
 typedef CompletionLog = void Function(String message);
 
 Future<CompletionList> onCompletion({
   required String? text,
   required Position position,
   required List<Declaration> index,
+  List<CompletionDataSource> sources = const [],
   Rank rank = rankCandidates,
   CompletionLog? log,
 }) async {
@@ -202,80 +335,9 @@ Future<CompletionList> onCompletion({
 
   log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');
 
-  List<CompletionCandidate> topLevelCandidates() {
-    return expandedIndex
-        .where((declaration) => declaration.isVisibleAt(cursorOffset))
-        .map(
-          (declaration) => switch (declaration) {
-            IndexedType() => ApexTypeCandidate(declaration),
-            IndexedVariable() => LocalVariableCandidate(declaration),
-            FieldMember() ||
-            MethodDeclaration() ||
-            EnumValueMember() => MemberCandidate(
-              declaration,
-              parentType: expandedIndex.enclosingAt<IndexedType>(cursorOffset),
-            ),
-            ConstructorDeclaration() => throw UnsupportedError(
-              'Autocompleting constructors is not supported at the moment',
-            ),
-          },
-        )
-        .toList();
-  }
-
-  List<CompletionCandidate> memberCandidates(
-    CompletionContextMember memberContext,
-  ) {
-    if (memberContext.typeName == null) {
-      return <CompletionCandidate>[];
-    }
-
-    final typeName = DeclarationName(memberContext.typeName!);
-
-    DeclarationName? resolveVariableType(DeclarationName name) => index
-        .whereType<IndexedVariable>()
-        .firstWhereOrNull((v) => v.name == name)
-        ?.typeName;
-
-    IndexedType? resolveQualified(DeclarationName name) {
-      final resolved = index.resolveQualifiedName(name.value);
-      return resolved is IndexedType ? resolved : null;
-    }
-
-    final indexedType =
-        index.findType(typeName) ??
-        index.findType(
-          resolveVariableType(typeName) ?? const DeclarationName(''),
-        ) ??
-        resolveQualified(typeName);
-
-    final isStaticAccess = memberContext.objectName == memberContext.typeName;
-
-    return switch (indexedType) {
-      null => <CompletionCandidate>[],
-      IndexedClass() =>
-        indexedType.members
-            .where((declaration) => declaration.isVisibleAt(cursorOffset))
-            .where((member) => isStaticAccess == _isStaticDeclaration(member))
-            .map((member) => MemberCandidate(member, parentType: indexedType))
-            .toList(),
-      IndexedInterface() =>
-        indexedType.methods
-            .map((method) => MemberCandidate(method, parentType: indexedType))
-            .toList(),
-      IndexedEnum() =>
-        indexedType.values
-            .map((value) => MemberCandidate(value, parentType: indexedType))
-            .toList(),
-    };
-  }
-
-  final prefix = context.prefix;
-  final candidates = switch (context) {
-    CompletionContextNone() => <CompletionCandidate>[],
-    CompletionContextMember() => memberCandidates(context),
-    CompletionContextTopLevel() => topLevelCandidates(),
-  };
+  final candidates = [
+    for (final source in sources) ...source(context, cursorOffset),
+  ];
 
   log?.call('Total candidates before filtering: ${candidates.length}');
 
@@ -288,6 +350,7 @@ Future<CompletionList> onCompletion({
     '(prefix="${context.prefix}")',
   );
 
+  final prefix = context.prefix;
   final rankedItems = rankCandidates(
     filteredCandidates,
     prefix,
@@ -308,38 +371,29 @@ Future<CompletionList> onCompletion({
 ///
 /// Filters candidates based on the prefix in the completion context. A candidate
 /// matches if its name starts with the context prefix, using case-insensitive
-/// comparison for local variables.
-///
-/// - [context]: The completion context containing the prefix to match against.
-/// - [candidate]: The completion candidate to check.
+/// comparison for local variables and keywords.
 ///
 /// Returns `true` if the candidate's name starts with the context prefix,
 /// `false` otherwise. Always returns `false` for [CompletionContextNone].
-///
-/// Example:
-/// ```dart
-/// final context = CompletionContextTopLevel(prefix: 'Acc');
-/// final candidate = ApexTypeCandidate(IndexedClass(DeclarationName('Account')));
-/// print(potentiallyMatches(context, candidate)); // true
-/// ```
 bool potentiallyMatches(
   CompletionContext context,
   CompletionCandidate candidate,
 ) {
-  bool candidateNameStartsWith(String prefix) {
+  bool nameStartsWith(String prefix) {
     return switch (candidate) {
       ApexTypeCandidate(:final type) => type.name.startsWith(prefix),
       MemberCandidate(:final declaration) => declaration.name.startsWith(
         prefix,
       ),
       LocalVariableCandidate(:final name) => name.startsWithIgnoreCase(prefix),
+      KeywordCandidate(:final name) => name.startsWithIgnoreCase(prefix),
     };
   }
 
   return switch (context) {
     CompletionContextNone() => false,
     CompletionContextTopLevel(:final prefix) ||
-    CompletionContextMember(:final prefix) => candidateNameStartsWith(prefix),
+    CompletionContextMember(:final prefix) => nameStartsWith(prefix),
   };
 }
 
