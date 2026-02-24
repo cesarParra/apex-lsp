@@ -2,12 +2,39 @@
 
 An Apex Language Server Protocol (LSP) server written in Dart.
 
-## Requirements
+Binaries are compiled for each Operating System (Windows, MacOs, Linux) and
+can be downloaded from the release page.
+
+When using the (sf-zed)[https://github.com/cesarParra/sf-zed] plugin, the latest
+version is automatically installed for you.
+
+## Features
+
+### Indexing
+
+### Limitations
+- Only local files
+- Only Apex files (no SObjects)
+
+- ### Autocompletion
+
+### Limitations
+- No inheritance support (`super.` calls are not autocompleted)
+- No Apexdocs support
+
+- ### Hover
+
+### Limitations
+- No Apexdocs support
+
+### Contributing
+
+### Requirements
 
 - Dart SDK (>= 3.0)
 - Integration tests: `git`, `make`, and `clang` (Xcode Command Line Tools on macOS, `build-essential` on Linux)
 
-## Run
+### Run
 
 From the repo root:
 
@@ -15,7 +42,7 @@ From the repo root:
 dart run bin/apex_lsp.dart
 ```
 
-## Integration tests (Tree-sitter)
+### Integration tests (Tree-sitter)
 
 The integration tests use a native Tree-sitter Apex library built by `tool/build_tree_sitter_lib.sh`. The script clones the Tree-sitter runtime and `tree-sitter-sfapex` into `.tree-sitter-build`, so the grammar does not need to live in this repo. This setup is supported on macOS (`.dylib`) and Linux (`.so`).
 
