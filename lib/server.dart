@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
-import 'package:apex_lsp/hover/hover_formatter.dart';
-import 'package:apex_lsp/hover/symbol_resolver.dart';
+import 'package:apex_lsp/gitignore.dart';
+import 'package:apex_lsp/handlers/requests/on_hover.dart';
+import 'package:apex_lsp/handlers/requests/on_initialize.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
-import 'package:apex_lsp/utils/text_utils.dart';
+import 'package:apex_lsp/utils/platform.dart';
+import 'package:file/file.dart';
 
 import 'lsp_out.dart';
 import 'message.dart';
@@ -60,13 +62,17 @@ final class Server {
     required LocalIndexer localIndexer,
     required WorkspaceIndexer workspaceIndexer,
     required CancellationTracker cancellationTracker,
+    required FileSystem fileSystem,
+    required LspPlatform platform,
   }) : _output = output,
        _reader = reader,
        _exitFn = exitFn,
        _openDocuments = openDocuments,
        _localIndexer = localIndexer,
        _workspaceIndexer = workspaceIndexer,
-       _cancellationTracker = cancellationTracker;
+       _cancellationTracker = cancellationTracker,
+       _fileSystem = fileSystem,
+       _platform = platform;
 
   final LspOut _output;
   final MessageReader _reader;
@@ -76,6 +82,8 @@ final class Server {
   final LocalIndexer _localIndexer;
   final WorkspaceIndexer _workspaceIndexer;
   final CancellationTracker _cancellationTracker;
+  final FileSystem _fileSystem;
+  final LspPlatform _platform;
   IndexRepository? _indexRepository;
 
   InitializationStatus _initializationStatus = NotInitialized();
@@ -229,6 +237,12 @@ final class Server {
         if (_initializationStatus case Initialized(:final params)) {
           await logMessage(MessageType.info, 'Apex LSP initialized');
 
+          try {
+            await _ensureGitignoreUpdated(params);
+          } catch (_) {
+            // A failure to update .gitignore should not be catastrophic.
+          }
+
           final token = ProgressToken.string(
             'apex-lsp-indexing-${DateTime.now().millisecondsSinceEpoch}',
           );
@@ -304,23 +318,7 @@ final class Server {
   /// the client will send an `initialized` notification to begin normal operation.
   Future<void> _onInitialize(InitializeRequest req) async {
     _initializationStatus = Initialized(params: req.params);
-
-    // Minimal InitializeResult with full document sync.
-    final result = <String, Object?>{
-      'capabilities': <String, Object?>{
-        'textDocumentSync': 1, // TextDocumentSyncKind.Full
-        // Very basic completions using the prebuilt index.
-        // We keep it minimal: advertise that we support completion requests.
-        'completionProvider': <String, Object?>{
-          'triggerCharacters': ['.'],
-        },
-        'hoverProvider': true,
-      },
-      // TODO: Get from dynamic JSON or pubspec or something like that
-      'serverInfo': <String, Object?>{'name': 'apex-lsp', 'version': '0.0.1'},
-    };
-
-    await _output.sendResponse(id: req.id, result: result);
+    await _output.sendResponse(id: req.id, result: onInitialize(req).toJson());
   }
 
   /// Handles the LSP `textDocument/completion` request.
@@ -381,29 +379,27 @@ final class Server {
     required HoverParams params,
     required LocalIndexer localIndexer,
   }) async {
-    final text = _openDocuments.get(params.textDocument.uri);
-    if (text == null) {
-      await _output.sendResponse(id: id, result: null);
-      return;
+    final result = await onHover(
+      id: id,
+      openDocumentText: _openDocuments.get(params.textDocument.uri),
+      params: params,
+      localIndexer: localIndexer,
+      indexRepository: _indexRepository,
+    );
+
+    await _output.sendResponse(id: id, result: result?.toJson());
+  }
+
+  Future<void> _ensureGitignoreUpdated(InitializedParams params) async {
+    final folders = params.workspaceFolders;
+    if (folders == null || folders.isEmpty) return;
+
+    for (final folder in folders) {
+      final uri = Uri.tryParse(folder.uri);
+      if (uri == null) continue;
+      final rootPath = uri.toFilePath(windows: _platform.isWindows);
+      final rootDir = _fileSystem.directory(rootPath);
+      await ensureSfZedIgnored(rootDir, _fileSystem);
     }
-
-    final localIndex = localIndexer.parseAndIndex(text);
-    final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
-    final index = [...localIndex, ...workspaceTypes];
-
-    final cursorOffset = offsetAtPosition(
-      text: text,
-      line: params.position.line,
-      character: params.position.character,
-    );
-
-    final resolved = resolveSymbolAt(
-      cursorOffset: cursorOffset,
-      text: text,
-      index: index,
-    );
-
-    final result = resolved != null ? formatHover(resolved).toJson() : null;
-    await _output.sendResponse(id: id, result: result);
   }
 }

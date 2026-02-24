@@ -1,3 +1,4 @@
+import 'package:apex_lsp/message.dart';
 import 'package:test/test.dart';
 
 import '../../support/cursor_utils.dart';

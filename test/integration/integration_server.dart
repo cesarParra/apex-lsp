@@ -35,6 +35,8 @@ typedef IntegrationData = ({
 IntegrationData createIntegrationData() {
   final input = InMemoryLspInput(sync: true);
   final sink = InMemoryByteSink();
+  final fileSystem = LocalFileSystem();
+  final platform = FakeLspPlatform();
   final integrationServer = Server(
     output: LspOut(output: sink),
     reader: MessageReader(input.stream),
@@ -43,13 +45,15 @@ IntegrationData createIntegrationData() {
     localIndexer: LocalIndexer(bindings: _bindings),
     workspaceIndexer: WorkspaceIndexer(
       sfdxWorkspaceLocator: SfdxWorkspaceLocator(
-        fileSystem: LocalFileSystem(),
-        platform: FakeLspPlatform(),
+        fileSystem: fileSystem,
+        platform: platform,
       ),
-      fileSystem: LocalFileSystem(),
-      platform: FakeLspPlatform(),
+      fileSystem: fileSystem,
+      platform: platform,
     ),
     cancellationTracker: CancellationTracker(),
+    fileSystem: fileSystem,
+    platform: platform,
   );
   return (server: integrationServer, sink: sink, input: input);
 }

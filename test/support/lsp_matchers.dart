@@ -1,8 +1,6 @@
 import 'package:apex_lsp/message.dart';
 import 'package:test/test.dart';
 
-import 'lsp_client.dart';
-
 // ---------------------------------------------------------------------------
 // Completion matchers
 // ---------------------------------------------------------------------------
@@ -78,7 +76,7 @@ final Matcher isCompleteList = isA<CompletionList>().having(
 ///
 ///   expect(result, hasCapability('completionProvider'));
 Matcher hasCapability(String name) => isA<InitializeResult>().having(
-  (result) => result.capabilities.containsKey(name),
+  (result) => result.capabilities.toJson().containsKey(name),
   'capabilities contains "$name"',
   isTrue,
 );

@@ -42,6 +42,8 @@ Future<void> main(List<String> args) async {
       platform: DartIoLspPlatform(),
     ),
     cancellationTracker: CancellationTracker(),
+    fileSystem: fileSystem,
+    platform: DartIoLspPlatform(),
   );
 
   try {
