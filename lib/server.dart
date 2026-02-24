@@ -4,12 +4,15 @@ import 'dart:io';
 import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
+import 'package:apex_lsp/gitignore.dart';
 import 'package:apex_lsp/hover/hover_formatter.dart';
 import 'package:apex_lsp/hover/symbol_resolver.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
+import 'package:apex_lsp/utils/platform.dart';
 import 'package:apex_lsp/utils/text_utils.dart';
+import 'package:file/file.dart';
 
 import 'lsp_out.dart';
 import 'message.dart';
@@ -60,13 +63,17 @@ final class Server {
     required LocalIndexer localIndexer,
     required WorkspaceIndexer workspaceIndexer,
     required CancellationTracker cancellationTracker,
+    required FileSystem fileSystem,
+    required LspPlatform platform,
   }) : _output = output,
        _reader = reader,
        _exitFn = exitFn,
        _openDocuments = openDocuments,
        _localIndexer = localIndexer,
        _workspaceIndexer = workspaceIndexer,
-       _cancellationTracker = cancellationTracker;
+       _cancellationTracker = cancellationTracker,
+       _fileSystem = fileSystem,
+       _platform = platform;
 
   final LspOut _output;
   final MessageReader _reader;
@@ -76,6 +83,8 @@ final class Server {
   final LocalIndexer _localIndexer;
   final WorkspaceIndexer _workspaceIndexer;
   final CancellationTracker _cancellationTracker;
+  final FileSystem _fileSystem;
+  final LspPlatform _platform;
   IndexRepository? _indexRepository;
 
   InitializationStatus _initializationStatus = NotInitialized();
@@ -228,6 +237,12 @@ final class Server {
       case InitializedMessage():
         if (_initializationStatus case Initialized(:final params)) {
           await logMessage(MessageType.info, 'Apex LSP initialized');
+
+          try {
+            await _ensureGitignoreUpdated(params);
+          } catch (_) {
+            // A failure to update .gitignore should not be catastrophic.
+          }
 
           final token = ProgressToken.string(
             'apex-lsp-indexing-${DateTime.now().millisecondsSinceEpoch}',
@@ -405,5 +420,18 @@ final class Server {
 
     final result = resolved != null ? formatHover(resolved).toJson() : null;
     await _output.sendResponse(id: id, result: result);
+  }
+
+  Future<void> _ensureGitignoreUpdated(InitializedParams params) async {
+    final folders = params.workspaceFolders;
+    if (folders == null || folders.isEmpty) return;
+
+    for (final folder in folders) {
+      final uri = Uri.tryParse(folder.uri);
+      if (uri == null) continue;
+      final rootPath = uri.toFilePath(windows: _platform.isWindows);
+      final rootDir = _fileSystem.directory(rootPath);
+      await ensureSfZedIgnored(rootDir, _fileSystem);
+    }
   }
 }

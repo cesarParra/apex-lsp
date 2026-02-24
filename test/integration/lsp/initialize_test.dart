@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:test/test.dart';
 
 import '../../support/lsp_client.dart';
@@ -64,6 +66,62 @@ void main() {
       );
 
       expect(result, hasCapability('completionProvider'));
+    });
+  });
+
+  group('.gitignore management', () {
+    late TestWorkspace workspace;
+    late LspClient client;
+
+    setUp(() async {
+      workspace = await createTestWorkspace();
+      client = createLspClient()..start();
+    });
+
+    tearDown(() async {
+      await client.dispose();
+      await deleteTestWorkspace(workspace);
+    });
+
+    test('adds .sf-zed to .gitignore when file exists without it', () async {
+      final gitignore = File('${workspace.directory.path}/.gitignore');
+      await gitignore.writeAsString('node_modules/\n*.log\n');
+
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+
+      final contents = await gitignore.readAsString();
+      expect(contents, contains('.sf-zed'));
+    });
+
+    test('does not duplicate .sf-zed if already in .gitignore', () async {
+      final gitignore = File('${workspace.directory.path}/.gitignore');
+      await gitignore.writeAsString('node_modules/\n.sf-zed\n');
+
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+
+      final contents = await gitignore.readAsString();
+      final occurrences = '.sf-zed'.allMatches(contents).length;
+      expect(occurrences, equals(1));
+    });
+
+    test('creates .gitignore with .sf-zed when no .gitignore exists', () async {
+      final gitignore = File('${workspace.directory.path}/.gitignore');
+      expect(await gitignore.exists(), isFalse);
+
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+
+      expect(await gitignore.exists(), isTrue);
+      final contents = await gitignore.readAsString();
+      expect(contents, contains('.sf-zed'));
     });
   });
 }
