@@ -5,13 +5,12 @@ import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
 import 'package:apex_lsp/gitignore.dart';
-import 'package:apex_lsp/hover/hover_formatter.dart';
-import 'package:apex_lsp/hover/symbol_resolver.dart';
+import 'package:apex_lsp/handlers/requests/on_hover.dart';
+import 'package:apex_lsp/handlers/requests/on_initialize.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
 import 'package:apex_lsp/utils/platform.dart';
-import 'package:apex_lsp/utils/text_utils.dart';
 import 'package:file/file.dart';
 
 import 'lsp_out.dart';
@@ -319,18 +318,7 @@ final class Server {
   /// the client will send an `initialized` notification to begin normal operation.
   Future<void> _onInitialize(InitializeRequest req) async {
     _initializationStatus = Initialized(params: req.params);
-
-    // TODO: Get version from pubspec or dynamic source.
-    final result = InitializeResult(
-      capabilities: ServerCapabilities(
-        textDocumentSync: 1, // TextDocumentSyncKind.Full
-        completionProvider: CompletionOptions(triggerCharacters: ['.']),
-        hoverProvider: true,
-      ),
-      serverInfo: ServerInfo(name: 'apex-lsp', version: '0.0.1'),
-    );
-
-    await _output.sendResponse(id: req.id, result: result.toJson());
+    await _output.sendResponse(id: req.id, result: onInitialize(req).toJson());
   }
 
   /// Handles the LSP `textDocument/completion` request.
@@ -391,30 +379,15 @@ final class Server {
     required HoverParams params,
     required LocalIndexer localIndexer,
   }) async {
-    final text = _openDocuments.get(params.textDocument.uri);
-    if (text == null) {
-      await _output.sendResponse(id: id, result: null);
-      return;
-    }
-
-    final localIndex = localIndexer.parseAndIndex(text);
-    final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
-    final index = [...localIndex, ...workspaceTypes];
-
-    final cursorOffset = offsetAtPosition(
-      text: text,
-      line: params.position.line,
-      character: params.position.character,
+    final result = await onHover(
+      id: id,
+      openDocumentText: _openDocuments.get(params.textDocument.uri),
+      params: params,
+      localIndexer: localIndexer,
+      indexRepository: _indexRepository,
     );
 
-    final resolved = resolveSymbolAt(
-      cursorOffset: cursorOffset,
-      text: text,
-      index: index,
-    );
-
-    final result = resolved != null ? formatHover(resolved).toJson() : null;
-    await _output.sendResponse(id: id, result: result);
+    await _output.sendResponse(id: id, result: result?.toJson());
   }
 
   Future<void> _ensureGitignoreUpdated(InitializedParams params) async {
