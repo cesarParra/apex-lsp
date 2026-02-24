@@ -1045,3 +1045,103 @@ final class WorkDoneProgressEnd extends WorkDoneProgressValue {
     return 'WorkDoneProgressEnd{kind: $kind, message: $message}';
   }
 }
+
+// ----------- initialize response types -----------------
+
+/// Options for the completion provider capability.
+///
+/// Advertises to the client which characters trigger completion requests.
+@JsonSerializable(createFactory: false)
+final class CompletionOptions {
+  /// Characters that trigger completion automatically (e.g. `'.'`).
+  final List<String>? triggerCharacters;
+
+  const CompletionOptions({this.triggerCharacters});
+
+  factory CompletionOptions.fromJson(Map<String, Object?> json) {
+    final triggers = json['triggerCharacters'] as List<Object?>?;
+    return CompletionOptions(triggerCharacters: triggers?.cast<String>());
+  }
+
+  Map<String, Object?> toJson() => _$CompletionOptionsToJson(this);
+}
+
+/// Server capabilities advertised in the `initialize` response.
+///
+/// Tells the client which LSP features this server supports.
+@JsonSerializable(createFactory: false, includeIfNull: false)
+final class ServerCapabilities {
+  /// How the server handles document synchronisation.
+  ///
+  /// `1` corresponds to `TextDocumentSyncKind.Full`.
+  final int? textDocumentSync;
+
+  /// Completion provider options, or `null` if completion is not supported.
+  final CompletionOptions? completionProvider;
+
+  /// Whether the server supports hover requests.
+  final bool? hoverProvider;
+
+  const ServerCapabilities({
+    this.textDocumentSync,
+    this.completionProvider,
+    this.hoverProvider,
+  });
+
+  factory ServerCapabilities.fromJson(Map<String, Object?> json) {
+    final completionProviderJson =
+        json['completionProvider'] as Map<String, Object?>?;
+    return ServerCapabilities(
+      textDocumentSync: json['textDocumentSync'] as int?,
+      completionProvider: completionProviderJson != null
+          ? CompletionOptions.fromJson(completionProviderJson)
+          : null,
+      hoverProvider: json['hoverProvider'] as bool?,
+    );
+  }
+
+  Map<String, Object?> toJson() => _$ServerCapabilitiesToJson(this);
+}
+
+/// Identifying information about the server returned in the `initialize` response.
+@JsonSerializable(createFactory: false)
+final class ServerInfo {
+  final String name;
+  final String? version;
+
+  const ServerInfo({required this.name, this.version});
+
+  factory ServerInfo.fromJson(Map<String, Object?> json) => ServerInfo(
+    name: json['name'] as String,
+    version: json['version'] as String?,
+  );
+
+  Map<String, Object?> toJson() => _$ServerInfoToJson(this);
+}
+
+/// Response to the LSP `initialize` request.
+///
+/// Contains the server's capabilities and optional identifying information.
+///
+/// See also:
+///  * [InitializeRequest], the corresponding request type.
+@JsonSerializable(createFactory: false, includeIfNull: false)
+final class InitializeResult {
+  final ServerCapabilities capabilities;
+  final ServerInfo? serverInfo;
+
+  const InitializeResult({required this.capabilities, this.serverInfo});
+
+  factory InitializeResult.fromJson(Map<String, Object?> json) {
+    return InitializeResult(
+      capabilities: ServerCapabilities.fromJson(
+        json['capabilities'] as Map<String, Object?>,
+      ),
+      serverInfo: json['serverInfo'] != null
+          ? ServerInfo.fromJson(json['serverInfo'] as Map<String, Object?>)
+          : null,
+    );
+  }
+
+  Map<String, Object?> toJson() => _$InitializeResultToJson(this);
+}

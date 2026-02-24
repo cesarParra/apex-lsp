@@ -320,22 +320,17 @@ final class Server {
   Future<void> _onInitialize(InitializeRequest req) async {
     _initializationStatus = Initialized(params: req.params);
 
-    // Minimal InitializeResult with full document sync.
-    final result = <String, Object?>{
-      'capabilities': <String, Object?>{
-        'textDocumentSync': 1, // TextDocumentSyncKind.Full
-        // Very basic completions using the prebuilt index.
-        // We keep it minimal: advertise that we support completion requests.
-        'completionProvider': <String, Object?>{
-          'triggerCharacters': ['.'],
-        },
-        'hoverProvider': true,
-      },
-      // TODO: Get from dynamic JSON or pubspec or something like that
-      'serverInfo': <String, Object?>{'name': 'apex-lsp', 'version': '0.0.1'},
-    };
+    // TODO: Get version from pubspec or dynamic source.
+    final result = InitializeResult(
+      capabilities: ServerCapabilities(
+        textDocumentSync: 1, // TextDocumentSyncKind.Full
+        completionProvider: CompletionOptions(triggerCharacters: ['.']),
+        hoverProvider: true,
+      ),
+      serverInfo: ServerInfo(name: 'apex-lsp', version: '0.0.1'),
+    );
 
-    await _output.sendResponse(id: req.id, result: result);
+    await _output.sendResponse(id: req.id, result: result.toJson());
   }
 
   /// Handles the LSP `textDocument/completion` request.

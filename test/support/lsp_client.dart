@@ -5,14 +5,6 @@ import 'package:apex_lsp/server.dart';
 
 import 'lsp_test_harness.dart';
 
-/// Result returned from [LspClient.initialize].
-final class InitializeResult {
-  final Map<String, Object?> capabilities;
-  final Map<String, Object?>? serverInfo;
-
-  InitializeResult({required this.capabilities, this.serverInfo});
-}
-
 final class Document {
   final String uri;
   final String text;
@@ -75,8 +67,12 @@ final class LspClient {
     }
 
     return InitializeResult(
-      capabilities: result['capabilities'] as Map<String, Object?>,
-      serverInfo: result['serverInfo'] as Map<String, Object?>?,
+      capabilities: ServerCapabilities.fromJson(
+        result['capabilities'] as Map<String, Object?>,
+      ),
+      serverInfo: result['serverInfo'] != null
+          ? ServerInfo.fromJson(result['serverInfo'] as Map<String, Object?>)
+          : null,
     );
   }
 
