@@ -106,6 +106,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('setName'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: false,
           returnType: 'void',
           parameters: [(type: 'String', name: 'name')],
@@ -128,6 +129,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('getName'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: false,
           returnType: 'String',
         );
@@ -142,6 +144,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('create'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: true,
           returnType: 'Account',
         );
@@ -156,6 +159,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('doWork'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: false,
           returnType: 'void',
         );

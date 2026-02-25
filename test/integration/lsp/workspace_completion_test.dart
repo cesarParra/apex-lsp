@@ -177,6 +177,7 @@ public class Animal {
   public static String staticVar;
   private static String privateVar;
   public String instanceMethod() {}
+  private String privateMethod() {}
   public static String staticMethod() {}
   public Enum Status { ACTIVE, INACTIVE }
   public interface Walkable { void walk(); String pace(); }
@@ -270,6 +271,20 @@ sampleAnimal.{cursor}''');
 
       expect(completions, containsCompletion('staticMethod'));
       expect(completions, doesNotContainCompletion('instanceMethod'));
+    });
+
+    test('does not autocomplete private class methods', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('privateMethod'));
     });
 
     test('completes instance class methods', () async {

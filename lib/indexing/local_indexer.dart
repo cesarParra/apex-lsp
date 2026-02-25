@@ -221,6 +221,7 @@ class LocalIndexer {
               isStatic: false,
               returnType: returnType.isEmpty ? null : returnType,
               parameters: parameters,
+              visibility: AlwaysVisible(),
             ),
           );
         }
@@ -555,6 +556,7 @@ class LocalIndexer {
         returnType: returnType.isEmpty ? null : returnType,
         parameters: parameters,
         location: location,
+        visibility: AlwaysVisible(),
       );
     }
 

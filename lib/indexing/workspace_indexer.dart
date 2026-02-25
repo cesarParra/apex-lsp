@@ -462,6 +462,8 @@ final class IndexRepository {
                 body: Block.empty(),
                 isStatic: method.isStatic,
                 returnType: method.typeReference.rawDeclaration,
+                // Interface methods are always accessible
+                visibility: AlwaysVisible(),
                 parameters: method.parameters
                     .map(
                       (parameter) => (
@@ -510,6 +512,9 @@ final class IndexRepository {
               body: Block.empty(),
               isStatic: method.isStatic,
               returnType: method.typeReference.rawDeclaration,
+              visibility: method.isPublic as bool
+                  ? AlwaysVisible()
+                  : NeverVisible(),
               parameters: method.parameters
                   .map(
                     (parameter) => (

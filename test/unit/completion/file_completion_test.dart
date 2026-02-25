@@ -144,6 +144,7 @@ void main() {
     test('autocomplete method names at top level', () async {
       final method = MethodDeclaration(
         DeclarationName('sampleMethod'),
+        visibility: AlwaysVisible(),
         body: Block.empty(),
         isStatic: false,
         returnType: 'void',
@@ -171,6 +172,7 @@ void main() {
       final method = MethodDeclaration(
         DeclarationName('sampleMethod'),
         body: Block.empty(),
+        visibility: AlwaysVisible(),
         isStatic: false,
         returnType: 'String',
         parameters: [(type: 'Integer', name: 'count')],
@@ -196,6 +198,7 @@ void main() {
     test('autocompletes methods declared after cursor', () async {
       final method = MethodDeclaration(
         DeclarationName('laterMethod'),
+        visibility: AlwaysVisible(),
         body: Block.empty(),
         isStatic: false,
         location: (20, 40),
@@ -247,11 +250,13 @@ void main() {
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
+            visibility: AlwaysVisible(),
             body: Block.empty(),
             isStatic: false,
           ),
           MethodDeclaration(
             DeclarationName('saySomething'),
+            visibility: AlwaysVisible(),
             body: Block.empty(),
             isStatic: false,
           ),
@@ -278,11 +283,13 @@ void main() {
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
+            visibility: AlwaysVisible(),
             body: Block.empty(),
             isStatic: false,
           ),
           MethodDeclaration(
             DeclarationName('saySomething'),
+            visibility: AlwaysVisible(),
             body: Block.empty(),
             isStatic: false,
           ),
@@ -489,6 +496,7 @@ void main() {
           MethodDeclaration(
             DeclarationName('doSomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -509,11 +517,13 @@ void main() {
           MethodDeclaration(
             DeclarationName('doSomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
           MethodDeclaration(
             DeclarationName('saySomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -535,11 +545,13 @@ void main() {
           MethodDeclaration(
             DeclarationName('doSomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
           MethodDeclaration(
             DeclarationName('saySomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -566,11 +578,13 @@ void main() {
           MethodDeclaration(
             DeclarationName('doSomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
           MethodDeclaration(
             DeclarationName('saySomething'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -682,11 +696,13 @@ void main() {
           MethodDeclaration(
             DeclarationName('staticMethod'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: true,
           ),
           MethodDeclaration(
             DeclarationName('instanceMethod'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -733,6 +749,7 @@ void main() {
               MethodDeclaration(
                 DeclarationName('doSomething'),
                 body: Block.empty(),
+                visibility: AlwaysVisible(),
                 isStatic: false,
               ),
             ],
@@ -758,11 +775,13 @@ void main() {
               MethodDeclaration(
                 DeclarationName('m1'),
                 body: Block.empty(),
+                visibility: AlwaysVisible(),
                 isStatic: false,
               ),
               MethodDeclaration(
                 DeclarationName('m2'),
                 body: Block.empty(),
+                visibility: AlwaysVisible(),
                 isStatic: false,
               ),
             ],
@@ -824,6 +843,7 @@ void main() {
               MethodDeclaration(
                 DeclarationName('doSomething'),
                 body: Block.empty(),
+                visibility: AlwaysVisible(),
                 isStatic: false,
               ),
             ],
@@ -1036,11 +1056,13 @@ void main() {
           MethodDeclaration(
             DeclarationName('staticMethod'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: true,
           ),
           MethodDeclaration(
             DeclarationName('instanceMethod'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -1071,6 +1093,7 @@ void main() {
           MethodDeclaration(
             DeclarationName('define'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -1186,6 +1209,7 @@ void main() {
           MethodDeclaration(
             DeclarationName('doWork'),
             body: Block.empty(),
+            visibility: AlwaysVisible(),
             isStatic: false,
           ),
         ],
@@ -1243,6 +1267,7 @@ void main() {
       final method = MethodDeclaration(
         DeclarationName('myMethod'),
         body: Block.empty(),
+        visibility: AlwaysVisible(),
         isStatic: false,
         location: (0, 10),
       );

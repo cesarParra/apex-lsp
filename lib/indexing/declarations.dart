@@ -123,14 +123,16 @@ final class MethodDeclaration extends Declaration {
     super.name, {
     required this.body,
     required this.isStatic,
+    required super.visibility,
     this.returnType,
     this.parameters = const [],
     super.location,
-  }) : super(visibility: AlwaysVisible());
+  });
 
   factory MethodDeclaration.withoutBody(
     DeclarationName name, {
     required bool isStatic,
+    required Visibility visibility,
     String? returnType,
     List<MethodParameter> parameters = const [],
   }) {
@@ -140,6 +142,7 @@ final class MethodDeclaration extends Declaration {
       isStatic: isStatic,
       returnType: returnType,
       parameters: parameters,
+      visibility: visibility,
     );
   }
 }

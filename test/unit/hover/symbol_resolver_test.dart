@@ -257,6 +257,7 @@ void main() {
             MethodDeclaration(
               DeclarationName('doSomething'),
               body: Block.empty(),
+              visibility: AlwaysVisible(),
               isStatic: false,
               returnType: 'void',
             ),

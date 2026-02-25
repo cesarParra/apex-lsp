@@ -289,7 +289,7 @@ void main() {
         expect(field.isStatic, isTrue);
       });
 
-      test('sets visibility for fields', () async {
+      test('sets visibility for private fields', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
             (
@@ -379,6 +379,22 @@ void main() {
 
         expect(method.name, equals(DeclarationName('doWork')));
         expect(method.isStatic, isTrue);
+      });
+
+      test('sets visibility for private methods', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { static void doWork() {} }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final method = result.members.whereType<MethodDeclaration>().first;
+
+        expect(method.visibility, isA<NeverVisible>());
       });
 
       test('captures class method signatures', () async {
