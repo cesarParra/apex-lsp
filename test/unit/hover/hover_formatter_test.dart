@@ -38,7 +38,11 @@ void main() {
 
     group('ResolvedType - class', () {
       test('shows class keyword and name', () {
-        final cls = IndexedClass(DeclarationName('Account'), members: []);
+        final cls = IndexedClass(
+          DeclarationName('Account'),
+          visibility: AlwaysVisible(),
+          members: [],
+        );
         final resolved = ResolvedType(cls);
 
         final hover = formatHover(resolved);
@@ -50,6 +54,7 @@ void main() {
       test('shows superclass when present', () {
         final cls = IndexedClass(
           DeclarationName('SalesOrder'),
+          visibility: AlwaysVisible(),
           superClass: 'Order',
           members: [],
         );
@@ -62,7 +67,11 @@ void main() {
       });
 
       test('does not show extends clause when no superclass', () {
-        final cls = IndexedClass(DeclarationName('Account'), members: []);
+        final cls = IndexedClass(
+          DeclarationName('Account'),
+          visibility: AlwaysVisible(),
+          members: [],
+        );
         final resolved = ResolvedType(cls);
 
         final hover = formatHover(resolved);
@@ -124,6 +133,7 @@ void main() {
       test('shows parent type when present', () {
         final parentClass = IndexedClass(
           DeclarationName('Account'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final method = MethodDeclaration(
@@ -205,6 +215,7 @@ void main() {
       test('shows parent type when present', () {
         final parentClass = IndexedClass(
           DeclarationName('Account'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final field = FieldMember(

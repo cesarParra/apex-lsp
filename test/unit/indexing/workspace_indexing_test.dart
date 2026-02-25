@@ -451,6 +451,23 @@ void main() {
         expect(innerClasses.first.members, hasLength(2));
       });
 
+      test('sets visibility for inner classes', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { private class Bar { } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerClasses = result.members.whereType<IndexedClass>().toList();
+
+        expect(innerClasses, hasLength(1));
+        expect(innerClasses.first.visibility, isA<NeverVisible>());
+      });
+
       test('indexes inner interfaces as members', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [

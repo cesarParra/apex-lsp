@@ -5,20 +5,28 @@ typedef Location = (int startByte, int endByte);
 typedef MethodParameter = ({String type, String name});
 
 sealed class Visibility {
+  const Visibility();
+
   bool isVisibleAt(int cursorOffset, Location? location);
 }
 
 final class NeverVisible extends Visibility {
+  const NeverVisible();
+
   @override
   bool isVisibleAt(int cursorOffset, Location? location) => false;
 }
 
 final class AlwaysVisible extends Visibility {
+  const AlwaysVisible();
+
   @override
   bool isVisibleAt(int cursorOffset, Location? location) => true;
 }
 
 final class VisibleAfterDeclaration extends Visibility {
+  const VisibleAfterDeclaration();
+
   @override
   bool isVisibleAt(int cursorOffset, Location? location) {
     if (location == null) return true;
@@ -29,7 +37,7 @@ final class VisibleAfterDeclaration extends Visibility {
 final class VisibleBetweenDeclarationAndScopeEnd extends Visibility {
   final int scopeEnd;
 
-  VisibleBetweenDeclarationAndScopeEnd({required this.scopeEnd});
+  const VisibleBetweenDeclarationAndScopeEnd({required this.scopeEnd});
 
   @override
   bool isVisibleAt(int cursorOffset, Location? location) {
@@ -58,8 +66,11 @@ class Block {
 }
 
 sealed class IndexedType extends Declaration {
-  IndexedType(super.name, {super.location})
-    : super(visibility: AlwaysVisible());
+  IndexedType(
+    super.name, {
+    super.location,
+    super.visibility = const AlwaysVisible(),
+  });
 }
 
 final class IndexedClass extends IndexedType {
@@ -69,6 +80,7 @@ final class IndexedClass extends IndexedType {
 
   IndexedClass(
     super.name, {
+    required super.visibility,
     this.members = const [],
     this.superClass,
     super.location,

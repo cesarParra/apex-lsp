@@ -193,6 +193,7 @@ void main() {
         final cursorOffset = text.indexOf('Account');
         final accountClass = IndexedClass(
           DeclarationName('Account'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final index = <Declaration>[accountClass];
@@ -253,6 +254,7 @@ void main() {
         final cursorOffset = text.indexOf('doSomething');
         final parentClass = IndexedClass(
           DeclarationName('MyClass'),
+          visibility: AlwaysVisible(),
           members: [
             MethodDeclaration(
               DeclarationName('doSomething'),
@@ -285,6 +287,7 @@ void main() {
         final cursorOffset = text.indexOf('myField');
         final parentClass = IndexedClass(
           DeclarationName('MyClass'),
+          visibility: AlwaysVisible(),
           members: [
             FieldMember(
               DeclarationName('myField'),
@@ -338,6 +341,7 @@ void main() {
         final cursorOffset = text.indexOf('token');
         final parserClass = IndexedClass(
           DeclarationName('Parser'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final tokenVariable = IndexedVariable(
@@ -370,9 +374,14 @@ void main() {
       test('parameter shadows workspace class with similar name', () {
         const text = 'void visit(Token token) {}';
         final cursorOffset = text.indexOf('token');
-        final tokenClass = IndexedClass(DeclarationName('Token'), members: []);
+        final tokenClass = IndexedClass(
+          DeclarationName('Token'),
+          visibility: AlwaysVisible(),
+          members: [],
+        );
         final tokenParam = IndexedVariable(
           DeclarationName('token'),
+          visibility: AlwaysVisible(),
           typeName: DeclarationName('Token'),
           location: (11, 23),
         );
@@ -402,6 +411,7 @@ void main() {
           final cursorOffset = text.indexOf('Token');
           final tokenClass = IndexedClass(
             DeclarationName('Token'),
+            visibility: AlwaysVisible(),
             members: [],
           );
           final index = <Declaration>[tokenClass];
@@ -426,6 +436,7 @@ void main() {
         final cursorOffset = text.indexOf('myclass');
         final myClassType = IndexedClass(
           DeclarationName('MyClass'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final myClassVar = IndexedVariable(
@@ -485,6 +496,7 @@ void main() {
         final cursorOffset = text.indexOf('MyClass');
         final constructorClass = IndexedClass(
           DeclarationName('MyClass'),
+          visibility: AlwaysVisible(),
           members: [ConstructorDeclaration(body: Block.empty())],
         );
         // The class itself is NOT in the index — only the constructor member
@@ -514,6 +526,7 @@ void main() {
         );
         final classWithConstructor = IndexedClass(
           DeclarationName('SomeClass'),
+          visibility: AlwaysVisible(),
           members: [ConstructorDeclaration(body: Block.empty())],
         );
         final index = <Declaration>[classWithConstructor, variable];
@@ -541,6 +554,7 @@ void main() {
           final cursorOffset = 0;
           final classWithConstructor = IndexedClass(
             DeclarationName('SomeClass'),
+            visibility: AlwaysVisible(),
             members: [ConstructorDeclaration(body: Block.empty())],
           );
           // Only the class with constructor, no variable

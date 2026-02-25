@@ -482,6 +482,7 @@ final class IndexRepository {
     IndexedClass fromClassMirror(apex_reflection.ClassMirror mirror) {
       return IndexedClass(
         DeclarationName(mirror.name),
+        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
         members: [
           ...mirror.classes.map(fromClassMirror),
           ...mirror.enums.map(fromEnumMirror),
@@ -491,7 +492,7 @@ final class IndexRepository {
               DeclarationName(field.name),
               isStatic: field.isStatic,
               typeName: DeclarationName(field.typeReference.type),
-              visibility: field.isPublic as bool
+              visibility: field.isAlwaysVisible
                   ? AlwaysVisible()
                   : NeverVisible(),
             ),
@@ -501,7 +502,7 @@ final class IndexRepository {
               DeclarationName(property.name),
               isStatic: property.isStatic,
               typeName: DeclarationName(property.typeReference.type),
-              visibility: property.isPublic as bool
+              visibility: property.isAlwaysVisible
                   ? AlwaysVisible()
                   : NeverVisible(),
             ),
@@ -512,7 +513,7 @@ final class IndexRepository {
               body: Block.empty(),
               isStatic: method.isStatic,
               returnType: method.typeReference.rawDeclaration,
-              visibility: method.isPublic as bool
+              visibility: method.isAlwaysVisible
                   ? AlwaysVisible()
                   : NeverVisible(),
               parameters: method.parameters
@@ -548,4 +549,8 @@ final class IndexRepository {
 extension on apex_reflection.MemberModifiersAwareness {
   bool get isStatic =>
       memberModifiers.contains(apex_reflection.MemberModifier.static);
+}
+
+extension on apex_reflection.AccessModifierAwareness {
+  bool get isAlwaysVisible => isPublic as bool || isGlobal as bool;
 }

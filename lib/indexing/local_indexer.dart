@@ -335,6 +335,7 @@ class LocalIndexer {
       DeclarationName(className),
       members: members,
       staticInitializers: staticInitializers,
+      visibility: AlwaysVisible(),
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),

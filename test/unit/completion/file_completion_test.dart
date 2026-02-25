@@ -606,7 +606,10 @@ void main() {
 
   group('classes', () {
     test('autocomplete classes types at top level', () async {
-      final classType = IndexedClass(DeclarationName('Foo'));
+      final classType = IndexedClass(
+        DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [classType],
@@ -619,6 +622,7 @@ void main() {
     test('autocomplete static class fields', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           FieldMember(
             DeclarationName('staticMember'),
@@ -649,6 +653,7 @@ void main() {
     test('autocomplete instance class fields', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           FieldMember(
             DeclarationName('staticMember'),
@@ -678,6 +683,7 @@ void main() {
 
     test('does not autocomplete constructors', () async {
       final classType = IndexedClass(
+        visibility: AlwaysVisible(),
         DeclarationName('Foo'),
         members: [ConstructorDeclaration(body: Block.empty())],
       );
@@ -692,6 +698,7 @@ void main() {
     test('autocomplete static class methods', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           MethodDeclaration(
             DeclarationName('staticMethod'),
@@ -719,6 +726,7 @@ void main() {
     test('autocomplete inner enums as static members', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           IndexedEnum(
             DeclarationName('Bar'),
@@ -742,6 +750,7 @@ void main() {
     test('autocomplete inner interfaces as static members', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           IndexedInterface(
             DeclarationName('Bar'),
@@ -768,6 +777,7 @@ void main() {
     test('autocomplete inner interface methods via variable', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           IndexedInterface(
             DeclarationName('Bar'),
@@ -806,9 +816,11 @@ void main() {
     test('autocomplete inner classes as static members', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           IndexedClass(
             DeclarationName('Bar'),
+            visibility: AlwaysVisible(),
             members: [
               FieldMember(
                 DeclarationName('name'),
@@ -831,9 +843,11 @@ void main() {
     test('autocomplete inner class members via variable', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           IndexedClass(
             DeclarationName('Bar'),
+            visibility: AlwaysVisible(),
             members: [
               FieldMember(
                 DeclarationName('name'),
@@ -868,6 +882,7 @@ void main() {
     test('autocomplete inner enum values via qualified access', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           IndexedEnum(
             DeclarationName('Bar'),
@@ -897,6 +912,7 @@ void main() {
           30,
           (i) => IndexedClass(
             DeclarationName('Type${i.toString().padLeft(2, '0')}'),
+            visibility: AlwaysVisible(),
           ),
         );
 
@@ -913,9 +929,15 @@ void main() {
     test('finds a specific type among more than 25 workspace types', () async {
       final types = List.generate(
         30,
-        (i) => IndexedClass(DeclarationName('Type$i')),
+        (i) => IndexedClass(
+          DeclarationName('Type$i'),
+          visibility: AlwaysVisible(),
+        ),
       );
-      final target = IndexedClass(DeclarationName('ZebraService'));
+      final target = IndexedClass(
+        DeclarationName('ZebraService'),
+        visibility: AlwaysVisible(),
+      );
 
       final completionList = await complete(
         extractCursorPosition('Zeb{cursor}'),
@@ -962,7 +984,7 @@ void main() {
           'OpportunityService',
           'OrderProcessor',
         ])
-          IndexedClass(DeclarationName(name)),
+          IndexedClass(DeclarationName(name), visibility: AlwaysVisible()),
       ];
 
       final completionList = await complete(
@@ -981,7 +1003,10 @@ void main() {
         'client re-requests on each keystroke', () async {
       final types = List.generate(
         30,
-        (i) => IndexedClass(DeclarationName('Class$i')),
+        (i) => IndexedClass(
+          DeclarationName('Class$i'),
+          visibility: AlwaysVisible(),
+        ),
       );
 
       // Empty prefix: client opens autocomplete popup
@@ -1010,6 +1035,7 @@ void main() {
           30,
           (i) => IndexedClass(
             DeclarationName('Type${i.toString().padLeft(2, '0')}'),
+            visibility: AlwaysVisible(),
           ),
         );
 
@@ -1029,6 +1055,7 @@ void main() {
         30,
         (i) => IndexedClass(
           DeclarationName('Type${i.toString().padLeft(2, '0')}'),
+          visibility: AlwaysVisible(),
         ),
       );
 
@@ -1052,6 +1079,7 @@ void main() {
     test('autocomplete instance class methods', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           MethodDeclaration(
             DeclarationName('staticMethod'),
@@ -1084,6 +1112,7 @@ void main() {
     test('autocomplete instance members via class field dot access', () async {
       final environment = IndexedClass(
         DeclarationName('Environment'),
+        visibility: AlwaysVisible(),
         members: [
           FieldMember(
             DeclarationName('variables'),
@@ -1117,7 +1146,10 @@ void main() {
 
   group('completion item kind', () {
     test('class completions have classKind', () async {
-      final classType = IndexedClass(DeclarationName('Account'));
+      final classType = IndexedClass(
+        DeclarationName('Account'),
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [classType],
@@ -1178,6 +1210,7 @@ void main() {
     test('field member completions have field kind', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           FieldMember(
             DeclarationName('bar'),
@@ -1205,6 +1238,7 @@ void main() {
     test('method member completions have method kind', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           MethodDeclaration(
             DeclarationName('doWork'),
@@ -1285,7 +1319,10 @@ void main() {
 
   group('completion item detail', () {
     test('class completions have "Class" detail', () async {
-      final classType = IndexedClass(DeclarationName('Account'));
+      final classType = IndexedClass(
+        DeclarationName('Account'),
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [classType],
@@ -1297,6 +1334,7 @@ void main() {
     test('class with superclass shows "extends" detail', () async {
       final classType = IndexedClass(
         DeclarationName('SavingsAccount'),
+        visibility: AlwaysVisible(),
         superClass: 'Account',
       );
       final completionList = await complete(
@@ -1350,6 +1388,7 @@ void main() {
     test('field member completions show type name as detail', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         members: [
           FieldMember(
             DeclarationName('bar'),
