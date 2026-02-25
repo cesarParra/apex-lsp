@@ -216,6 +216,7 @@ void main() {
         final cursorOffset = text.indexOf('Color');
         final colorEnum = IndexedEnum(
           DeclarationName('Color'),
+          visibility: AlwaysVisible(),
           values: [EnumValueMember(DeclarationName('RED'))],
         );
         final index = <Declaration>[colorEnum];
@@ -317,6 +318,7 @@ void main() {
         final cursorOffset = text.indexOf('RED');
         final colorEnum = IndexedEnum(
           DeclarationName('Color'),
+          visibility: AlwaysVisible(),
           values: [EnumValueMember(DeclarationName('RED'))],
         );
         final index = <Declaration>[colorEnum];

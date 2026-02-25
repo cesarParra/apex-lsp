@@ -180,6 +180,7 @@ public class Animal {
   private String privateMethod() {}
   public static String staticMethod() {}
   public Enum Status { ACTIVE, INACTIVE }
+  private Enum PrivateInnerEnum { ACTIVE, INACTIVE }
   public interface Walkable { void walk(); String pace(); }
   private interface PrivateInnerInterface { void walk(); String pace(); }
   public class Leg { public String name; public void move() {} }
@@ -429,6 +430,20 @@ sample.{cursor}''');
 
       expect(completions, containsCompletion('name'));
       expect(completions, containsCompletion('move'));
+    });
+
+    test('does not autocomplete private inner enums', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('PrivateInnerEnum'));
     });
   });
 

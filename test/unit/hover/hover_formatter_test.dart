@@ -84,6 +84,7 @@ void main() {
       test('shows enum keyword and name', () {
         final enm = IndexedEnum(
           DeclarationName('Status'),
+          visibility: AlwaysVisible(),
           values: [EnumValueMember(DeclarationName('ACTIVE'))],
         );
         final resolved = ResolvedType(enm);
@@ -237,6 +238,7 @@ void main() {
       test('shows parent enum name and value name', () {
         final parentEnum = IndexedEnum(
           DeclarationName('Color'),
+          visibility: AlwaysVisible(),
           values: [EnumValueMember(DeclarationName('RED'))],
         );
         final enumValue = EnumValueMember(DeclarationName('RED'));

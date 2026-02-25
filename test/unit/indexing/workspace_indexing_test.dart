@@ -527,6 +527,24 @@ void main() {
         expect(innerEnums.first.name, equals(DeclarationName('Status')));
         expect(innerEnums.first.values, hasLength(2));
       });
+
+      test('sets inner enum visibility', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { private enum Status { ACTIVE, INACTIVE } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerEnums = result.members.whereType<IndexedEnum>().toList();
+
+        expect(innerEnums, hasLength(1));
+        expect(innerEnums.first.visibility, isA<NeverVisible>());
+      });
     });
   });
 }

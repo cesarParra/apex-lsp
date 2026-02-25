@@ -66,11 +66,7 @@ class Block {
 }
 
 sealed class IndexedType extends Declaration {
-  IndexedType(
-    super.name, {
-    super.location,
-    super.visibility = const AlwaysVisible(),
-  });
+  IndexedType(super.name, {super.location, required super.visibility});
 }
 
 final class IndexedClass extends IndexedType {
@@ -104,7 +100,12 @@ final class IndexedInterface extends IndexedType {
 final class IndexedEnum extends IndexedType {
   final List<EnumValueMember> values;
 
-  IndexedEnum(super.name, {required this.values, super.location});
+  IndexedEnum(
+    super.name, {
+    required this.values,
+    required super.visibility,
+    super.location,
+  });
 }
 
 final class FieldMember extends Declaration {

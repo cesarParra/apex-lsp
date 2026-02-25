@@ -25,7 +25,11 @@ void main() {
 
   group('enums', () {
     test('autocomplete enum types on empty file', () async {
-      final enumType = IndexedEnum(DeclarationName('Foo'), values: []);
+      final enumType = IndexedEnum(
+        DeclarationName('Foo'),
+        values: [],
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [enumType],
@@ -36,7 +40,11 @@ void main() {
     });
 
     test('autocomplete enum types when typing a top level name', () async {
-      final enumType = IndexedEnum(DeclarationName('Foo'), values: []);
+      final enumType = IndexedEnum(
+        DeclarationName('Foo'),
+        values: [],
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('F{cursor}'),
         index: [enumType],
@@ -49,6 +57,7 @@ void main() {
     test('autocompletes all enum values', () async {
       final enumType = IndexedEnum(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         values: ['Bar'.enumValueMember(), 'Baz'.enumValueMember()],
       );
       final completionList = await complete(
@@ -64,6 +73,7 @@ void main() {
     test('autocompletes all enum values by name', () async {
       final enumType = IndexedEnum(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         values: ['Bar'.enumValueMember(), 'Other'.enumValueMember()],
       );
       final completionList = await complete(
@@ -108,7 +118,11 @@ void main() {
     });
 
     test('mixed types and variables', () async {
-      final enumType = IndexedEnum(DeclarationName('Foo'), values: []);
+      final enumType = IndexedEnum(
+        DeclarationName('Foo'),
+        values: [],
+        visibility: AlwaysVisible(),
+      );
       final variable = IndexedVariable(
         DeclarationName('fooInstance'),
         typeName: DeclarationName('Foo'),
@@ -736,6 +750,7 @@ void main() {
         members: [
           IndexedEnum(
             DeclarationName('Bar'),
+            visibility: AlwaysVisible(),
             values: [
               'A'.enumValueMember(),
               'B'.enumValueMember(),
@@ -894,6 +909,7 @@ void main() {
         members: [
           IndexedEnum(
             DeclarationName('Bar'),
+            visibility: AlwaysVisible(),
             values: [
               'A'.enumValueMember(),
               'B'.enumValueMember(),
@@ -1187,7 +1203,11 @@ void main() {
     });
 
     test('enum completions have enumKind', () async {
-      final enumType = IndexedEnum(DeclarationName('Season'), values: []);
+      final enumType = IndexedEnum(
+        DeclarationName('Season'),
+        values: [],
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [enumType],
@@ -1276,6 +1296,7 @@ void main() {
     test('enum value completions have enumMember kind', () async {
       final enumType = IndexedEnum(
         DeclarationName('Season'),
+        visibility: AlwaysVisible(),
         values: ['SPRING'.enumValueMember()],
       );
       final completionList = await complete(
@@ -1372,7 +1393,11 @@ void main() {
     });
 
     test('enum completions have "Enum" detail', () async {
-      final enumType = IndexedEnum(DeclarationName('Season'), values: []);
+      final enumType = IndexedEnum(
+        DeclarationName('Season'),
+        values: [],
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [enumType],
@@ -1424,6 +1449,7 @@ void main() {
     test('enum value completions show parent enum as detail', () async {
       final enumType = IndexedEnum(
         DeclarationName('Season'),
+        visibility: AlwaysVisible(),
         values: ['SPRING'.enumValueMember()],
       );
       final completionList = await complete(
@@ -1496,6 +1522,7 @@ void main() {
     test('keywords are not suggested after a dot operator', () async {
       final enumType = IndexedEnum(
         DeclarationName('Season'),
+        visibility: AlwaysVisible(),
         values: ['SPRING'.enumValueMember()],
       );
       final completionList = await complete(
@@ -1513,7 +1540,11 @@ void main() {
     });
 
     test('keywords and declarations can be combined as sources', () async {
-      final enumType = IndexedEnum(DeclarationName('Season'), values: []);
+      final enumType = IndexedEnum(
+        DeclarationName('Season'),
+        values: [],
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [enumType],

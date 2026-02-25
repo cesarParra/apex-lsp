@@ -443,6 +443,7 @@ final class IndexRepository {
     IndexedEnum fromEnumMirror(apex_reflection.EnumMirror mirror) {
       return IndexedEnum(
         DeclarationName(mirror.name),
+        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
         values: mirror.values
             .map((value) => EnumValueMember(DeclarationName(value.name)))
             .toList(),
