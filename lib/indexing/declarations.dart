@@ -5,20 +5,28 @@ typedef Location = (int startByte, int endByte);
 typedef MethodParameter = ({String type, String name});
 
 sealed class Visibility {
+  const Visibility();
+
   bool isVisibleAt(int cursorOffset, Location? location);
 }
 
 final class NeverVisible extends Visibility {
+  const NeverVisible();
+
   @override
   bool isVisibleAt(int cursorOffset, Location? location) => false;
 }
 
 final class AlwaysVisible extends Visibility {
+  const AlwaysVisible();
+
   @override
   bool isVisibleAt(int cursorOffset, Location? location) => true;
 }
 
 final class VisibleAfterDeclaration extends Visibility {
+  const VisibleAfterDeclaration();
+
   @override
   bool isVisibleAt(int cursorOffset, Location? location) {
     if (location == null) return true;
@@ -29,7 +37,7 @@ final class VisibleAfterDeclaration extends Visibility {
 final class VisibleBetweenDeclarationAndScopeEnd extends Visibility {
   final int scopeEnd;
 
-  VisibleBetweenDeclarationAndScopeEnd({required this.scopeEnd});
+  const VisibleBetweenDeclarationAndScopeEnd({required this.scopeEnd});
 
   @override
   bool isVisibleAt(int cursorOffset, Location? location) {
@@ -58,8 +66,7 @@ class Block {
 }
 
 sealed class IndexedType extends Declaration {
-  IndexedType(super.name, {super.location})
-    : super(visibility: AlwaysVisible());
+  IndexedType(super.name, {super.location, required super.visibility});
 }
 
 final class IndexedClass extends IndexedType {
@@ -69,6 +76,7 @@ final class IndexedClass extends IndexedType {
 
   IndexedClass(
     super.name, {
+    required super.visibility,
     this.members = const [],
     this.superClass,
     super.location,
@@ -83,6 +91,7 @@ final class IndexedInterface extends IndexedType {
   IndexedInterface(
     super.name, {
     required this.methods,
+    required super.visibility,
     this.superInterface,
     super.location,
   });
@@ -91,15 +100,24 @@ final class IndexedInterface extends IndexedType {
 final class IndexedEnum extends IndexedType {
   final List<EnumValueMember> values;
 
-  IndexedEnum(super.name, {required this.values, super.location});
+  IndexedEnum(
+    super.name, {
+    required this.values,
+    required super.visibility,
+    super.location,
+  });
 }
 
 final class FieldMember extends Declaration {
   final DeclarationName? typeName;
   final bool isStatic;
 
-  FieldMember(super.name, {required this.isStatic, this.typeName})
-    : super(visibility: AlwaysVisible());
+  FieldMember(
+    super.name, {
+    required this.isStatic,
+    required super.visibility,
+    this.typeName,
+  });
 }
 
 final class ConstructorDeclaration extends Declaration {
@@ -119,14 +137,16 @@ final class MethodDeclaration extends Declaration {
     super.name, {
     required this.body,
     required this.isStatic,
+    required super.visibility,
     this.returnType,
     this.parameters = const [],
     super.location,
-  }) : super(visibility: AlwaysVisible());
+  });
 
   factory MethodDeclaration.withoutBody(
     DeclarationName name, {
     required bool isStatic,
+    required Visibility visibility,
     String? returnType,
     List<MethodParameter> parameters = const [],
   }) {
@@ -136,6 +156,7 @@ final class MethodDeclaration extends Declaration {
       isStatic: isStatic,
       returnType: returnType,
       parameters: parameters,
+      visibility: visibility,
     );
   }
 }

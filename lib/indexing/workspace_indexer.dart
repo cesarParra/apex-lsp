@@ -443,6 +443,7 @@ final class IndexRepository {
     IndexedEnum fromEnumMirror(apex_reflection.EnumMirror mirror) {
       return IndexedEnum(
         DeclarationName(mirror.name),
+        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
         values: mirror.values
             .map((value) => EnumValueMember(DeclarationName(value.name)))
             .toList(),
@@ -455,6 +456,7 @@ final class IndexRepository {
       // TODO: Parse and populate super
       return IndexedInterface(
         DeclarationName(mirror.name),
+        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
         methods: mirror.methods
             .map(
               (method) => MethodDeclaration(
@@ -462,6 +464,8 @@ final class IndexRepository {
                 body: Block.empty(),
                 isStatic: method.isStatic,
                 returnType: method.typeReference.rawDeclaration,
+                // Interface methods are always accessible
+                visibility: AlwaysVisible(),
                 parameters: method.parameters
                     .map(
                       (parameter) => (
@@ -480,6 +484,7 @@ final class IndexRepository {
     IndexedClass fromClassMirror(apex_reflection.ClassMirror mirror) {
       return IndexedClass(
         DeclarationName(mirror.name),
+        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
         members: [
           ...mirror.classes.map(fromClassMirror),
           ...mirror.enums.map(fromEnumMirror),
@@ -489,6 +494,9 @@ final class IndexRepository {
               DeclarationName(field.name),
               isStatic: field.isStatic,
               typeName: DeclarationName(field.typeReference.type),
+              visibility: field.isAlwaysVisible
+                  ? AlwaysVisible()
+                  : NeverVisible(),
             ),
           ),
           ...mirror.properties.map(
@@ -496,6 +504,9 @@ final class IndexRepository {
               DeclarationName(property.name),
               isStatic: property.isStatic,
               typeName: DeclarationName(property.typeReference.type),
+              visibility: property.isAlwaysVisible
+                  ? AlwaysVisible()
+                  : NeverVisible(),
             ),
           ),
           ...mirror.methods.map(
@@ -504,6 +515,9 @@ final class IndexRepository {
               body: Block.empty(),
               isStatic: method.isStatic,
               returnType: method.typeReference.rawDeclaration,
+              visibility: method.isAlwaysVisible
+                  ? AlwaysVisible()
+                  : NeverVisible(),
               parameters: method.parameters
                   .map(
                     (parameter) => (
@@ -537,4 +551,8 @@ final class IndexRepository {
 extension on apex_reflection.MemberModifiersAwareness {
   bool get isStatic =>
       memberModifiers.contains(apex_reflection.MemberModifier.static);
+}
+
+extension on apex_reflection.AccessModifierAwareness {
+  bool get isAlwaysVisible => isPublic as bool || isGlobal as bool;
 }

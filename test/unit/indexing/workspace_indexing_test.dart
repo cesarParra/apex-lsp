@@ -289,6 +289,22 @@ void main() {
         expect(field.isStatic, isTrue);
       });
 
+      test('sets visibility for private fields', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { static String bar; }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.visibility, isA<NeverVisible>());
+      });
+
       test('indexes instance class fields', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
@@ -365,6 +381,22 @@ void main() {
         expect(method.isStatic, isTrue);
       });
 
+      test('sets visibility for private methods', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { static void doWork() {} }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final method = result.members.whereType<MethodDeclaration>().first;
+
+        expect(method.visibility, isA<NeverVisible>());
+      });
+
       test('captures class method signatures', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
@@ -419,6 +451,23 @@ void main() {
         expect(innerClasses.first.members, hasLength(2));
       });
 
+      test('sets visibility for inner classes', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { private class Bar { } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerClasses = result.members.whereType<IndexedClass>().toList();
+
+        expect(innerClasses, hasLength(1));
+        expect(innerClasses.first.visibility, isA<NeverVisible>());
+      });
+
       test('indexes inner interfaces as members', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
@@ -440,6 +489,26 @@ void main() {
         expect(innerInterfaces.first.methods, hasLength(2));
       });
 
+      test('sets visibility for inner interfaces', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { private interface Bar { void doWork(); String getName(); } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerInterfaces = result.members
+            .whereType<IndexedInterface>()
+            .toList();
+
+        expect(innerInterfaces, hasLength(1));
+        expect(innerInterfaces.first.visibility, isA<NeverVisible>());
+      });
+
       test('indexes inner enums as members', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [
@@ -457,6 +526,24 @@ void main() {
         expect(innerEnums, hasLength(1));
         expect(innerEnums.first.name, equals(DeclarationName('Status')));
         expect(innerEnums.first.values, hasLength(2));
+      });
+
+      test('sets inner enum visibility', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { private enum Status { ACTIVE, INACTIVE } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerEnums = result.members.whereType<IndexedEnum>().toList();
+
+        expect(innerEnums, hasLength(1));
+        expect(innerEnums.first.visibility, isA<NeverVisible>());
       });
     });
   });

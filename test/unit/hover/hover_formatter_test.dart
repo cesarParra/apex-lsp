@@ -38,7 +38,11 @@ void main() {
 
     group('ResolvedType - class', () {
       test('shows class keyword and name', () {
-        final cls = IndexedClass(DeclarationName('Account'), members: []);
+        final cls = IndexedClass(
+          DeclarationName('Account'),
+          visibility: AlwaysVisible(),
+          members: [],
+        );
         final resolved = ResolvedType(cls);
 
         final hover = formatHover(resolved);
@@ -50,6 +54,7 @@ void main() {
       test('shows superclass when present', () {
         final cls = IndexedClass(
           DeclarationName('SalesOrder'),
+          visibility: AlwaysVisible(),
           superClass: 'Order',
           members: [],
         );
@@ -62,7 +67,11 @@ void main() {
       });
 
       test('does not show extends clause when no superclass', () {
-        final cls = IndexedClass(DeclarationName('Account'), members: []);
+        final cls = IndexedClass(
+          DeclarationName('Account'),
+          visibility: AlwaysVisible(),
+          members: [],
+        );
         final resolved = ResolvedType(cls);
 
         final hover = formatHover(resolved);
@@ -75,6 +84,7 @@ void main() {
       test('shows enum keyword and name', () {
         final enm = IndexedEnum(
           DeclarationName('Status'),
+          visibility: AlwaysVisible(),
           values: [EnumValueMember(DeclarationName('ACTIVE'))],
         );
         final resolved = ResolvedType(enm);
@@ -90,6 +100,7 @@ void main() {
       test('shows interface keyword and name', () {
         final iface = IndexedInterface(
           DeclarationName('Runnable'),
+          visibility: AlwaysVisible(),
           methods: [],
         );
         final resolved = ResolvedType(iface);
@@ -106,6 +117,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('setName'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: false,
           returnType: 'void',
           parameters: [(type: 'String', name: 'name')],
@@ -123,11 +135,13 @@ void main() {
       test('shows parent type when present', () {
         final parentClass = IndexedClass(
           DeclarationName('Account'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final method = MethodDeclaration(
           DeclarationName('getName'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: false,
           returnType: 'String',
         );
@@ -142,6 +156,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('create'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: true,
           returnType: 'Account',
         );
@@ -156,6 +171,7 @@ void main() {
         final method = MethodDeclaration(
           DeclarationName('doWork'),
           body: Block.empty(),
+          visibility: AlwaysVisible(),
           isStatic: false,
           returnType: 'void',
         );
@@ -174,6 +190,7 @@ void main() {
           DeclarationName('status'),
           isStatic: false,
           typeName: DeclarationName('String'),
+          visibility: AlwaysVisible(),
         );
         final resolved = ResolvedField(field);
 
@@ -188,6 +205,7 @@ void main() {
           DeclarationName('MAX_SIZE'),
           isStatic: true,
           typeName: DeclarationName('Integer'),
+          visibility: AlwaysVisible(),
         );
         final resolved = ResolvedField(field);
 
@@ -199,12 +217,14 @@ void main() {
       test('shows parent type when present', () {
         final parentClass = IndexedClass(
           DeclarationName('Account'),
+          visibility: AlwaysVisible(),
           members: [],
         );
         final field = FieldMember(
           DeclarationName('name'),
           isStatic: false,
           typeName: DeclarationName('String'),
+          visibility: AlwaysVisible(),
         );
         final resolved = ResolvedField(field, parentType: parentClass);
 
@@ -218,6 +238,7 @@ void main() {
       test('shows parent enum name and value name', () {
         final parentEnum = IndexedEnum(
           DeclarationName('Color'),
+          visibility: AlwaysVisible(),
           values: [EnumValueMember(DeclarationName('RED'))],
         );
         final enumValue = EnumValueMember(DeclarationName('RED'));

@@ -185,6 +185,7 @@ class LocalIndexer {
 
     return IndexedEnum(
       DeclarationName(enumName),
+      visibility: AlwaysVisible(),
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),
@@ -221,6 +222,7 @@ class LocalIndexer {
               isStatic: false,
               returnType: returnType.isEmpty ? null : returnType,
               parameters: parameters,
+              visibility: AlwaysVisible(),
             ),
           );
         }
@@ -230,6 +232,7 @@ class LocalIndexer {
     return IndexedInterface(
       DeclarationName(interfaceName),
       methods: methods,
+      visibility: AlwaysVisible(),
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),
@@ -264,6 +267,7 @@ class LocalIndexer {
             FieldMember(
               DeclarationName(fieldName),
               isStatic: isStatic,
+              visibility: AlwaysVisible(),
               typeName: fieldTypeName.isNotEmpty
                   ? DeclarationName(fieldTypeName)
                   : null,
@@ -333,6 +337,7 @@ class LocalIndexer {
       DeclarationName(className),
       members: members,
       staticInitializers: staticInitializers,
+      visibility: AlwaysVisible(),
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),
@@ -554,6 +559,7 @@ class LocalIndexer {
         returnType: returnType.isEmpty ? null : returnType,
         parameters: parameters,
         location: location,
+        visibility: AlwaysVisible(),
       );
     }
 

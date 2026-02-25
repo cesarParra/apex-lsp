@@ -45,7 +45,7 @@ void main() {
     );
   });
 
-  group('Workspace Completion with indexed types', () {
+  group('Workspace Completion with indexed enums', () {
     late TestWorkspace workspace;
     late LspClient client;
 
@@ -173,13 +173,24 @@ myVar.{cursor}''');
             name: 'Animal.cls',
             source: '''
 public class Animal {
-  String instanceVar;
-  static String staticVar;
-  String instanceMethod() {}
-  static String staticMethod() {}
+  public String instanceVar;
+  public static String staticVar;
+  private static String privateVar;
+  public String instanceMethod() {}
+  private String privateMethod() {}
+  public static String staticMethod() {}
   public Enum Status { ACTIVE, INACTIVE }
+  private Enum PrivateInnerEnum { ACTIVE, INACTIVE }
   public interface Walkable { void walk(); String pace(); }
-  public class Leg { String name; void move() {} }
+  private interface PrivateInnerInterface { void walk(); String pace(); }
+  public class Leg { public String name; public void move() {} }
+  private class PrivateInnerClass { public String name; public void move() {} }
+}''',
+          ),
+          (
+            name: 'AnimalTest.cls',
+            source: '''
+private class Animal {
 }''',
           ),
         ],
@@ -210,6 +221,20 @@ public class Animal {
       expect(completions, containsCompletion('Animal'));
     });
 
+    test('does not autocomplete workspace private classes', () async {
+      final textWithPosition = extractCursorPosition('Ani{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('AnimalTest'));
+    });
+
     test('completes static class fields', () async {
       final textWithPosition = extractCursorPosition('Animal.{cursor}');
       final document = Document.withText(textWithPosition.text);
@@ -223,6 +248,20 @@ public class Animal {
 
       expect(completions, containsCompletion('staticVar'));
       expect(completions, doesNotContainCompletion('instanceVar'));
+    });
+
+    test('does not complete private class fields', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('privateVar'));
     });
 
     test('completes instance class fields', () async {
@@ -255,6 +294,20 @@ sampleAnimal.{cursor}''');
 
       expect(completions, containsCompletion('staticMethod'));
       expect(completions, doesNotContainCompletion('instanceMethod'));
+    });
+
+    test('does not autocomplete private class methods', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('privateMethod'));
     });
 
     test('completes instance class methods', () async {
@@ -303,6 +356,20 @@ sampleAnimal.{cursor}''');
       expect(completions, containsCompletion('INACTIVE'));
     });
 
+    test('does not autocomplete private inner interfaces', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('PrivateInnerInterface'));
+    });
+
     test('completes inner interface methods via variable', () async {
       final textWithPosition = extractCursorPosition('''
 Animal.Walkable sample;
@@ -334,6 +401,20 @@ sample.{cursor}''');
       expect(completions, containsCompletion('Leg'));
     });
 
+    test('does not autocomplete private inner classes', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('PrivateInnerClass'));
+    });
+
     test('completes inner class members via variable', () async {
       final textWithPosition = extractCursorPosition('''
 Animal.Leg sample;
@@ -349,6 +430,20 @@ sample.{cursor}''');
 
       expect(completions, containsCompletion('name'));
       expect(completions, containsCompletion('move'));
+    });
+
+    test('does not autocomplete private inner enums', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('PrivateInnerEnum'));
     });
   });
 
@@ -413,9 +508,9 @@ sample.{cursor}''');
             name: 'Animal.cls',
             source: '''
 public class Animal {
-  String name;
-  static Integer count;
-  void speak() {}
+  public String name;
+  public static Integer count;
+  public void speak() {}
 }''',
           ),
         ],
