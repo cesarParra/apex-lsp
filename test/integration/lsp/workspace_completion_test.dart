@@ -45,7 +45,7 @@ void main() {
     );
   });
 
-  group('Workspace Completion with indexed types', () {
+  group('Workspace Completion with indexed enums', () {
     late TestWorkspace workspace;
     late LspClient client;
 
@@ -175,6 +175,7 @@ myVar.{cursor}''');
 public class Animal {
   public String instanceVar;
   public static String staticVar;
+  private static String privateVar;
   public String instanceMethod() {}
   public static String staticMethod() {}
   public Enum Status { ACTIVE, INACTIVE }
@@ -223,6 +224,20 @@ public class Animal {
 
       expect(completions, containsCompletion('staticVar'));
       expect(completions, doesNotContainCompletion('instanceVar'));
+    });
+
+    test('does not complete private class fields', () async {
+      final textWithPosition = extractCursorPosition('Animal.{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('privateVar'));
     });
 
     test('completes instance class fields', () async {
