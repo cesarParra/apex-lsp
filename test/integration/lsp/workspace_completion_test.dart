@@ -186,6 +186,12 @@ public class Animal {
   private class PrivateInnerClass { public String name; public void move() {} }
 }''',
           ),
+          (
+            name: 'AnimalTest.cls',
+            source: '''
+private class Animal {
+}''',
+          ),
         ],
       );
       client = createLspClient()..start();
@@ -212,6 +218,20 @@ public class Animal {
       );
 
       expect(completions, containsCompletion('Animal'));
+    });
+
+    test('does not autocomplete workspace private classes', () async {
+      final textWithPosition = extractCursorPosition('Ani{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('AnimalTest'));
     });
 
     test('completes static class fields', () async {
