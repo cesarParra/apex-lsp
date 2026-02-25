@@ -248,7 +248,7 @@ final class LspClient {
         }
       }
 
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
     }
 
     throw StateError(timeoutMessage ?? 'Timed out waiting for expected frame');
@@ -281,7 +281,8 @@ final class LspClient {
     );
   }
 
-  Future<void> _pumpEventLoop() => Future<void>.delayed(Duration.zero);
+  Future<void> _pumpEventLoop() =>
+      Future<void>.delayed(const Duration(milliseconds: 1));
 
   CompletionList _parseCompletionList(Map<String, Object?> json) {
     final isIncomplete = json['isIncomplete'] as bool;
