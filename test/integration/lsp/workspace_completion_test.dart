@@ -173,13 +173,13 @@ myVar.{cursor}''');
             name: 'Animal.cls',
             source: '''
 public class Animal {
-  String instanceVar;
-  static String staticVar;
-  String instanceMethod() {}
-  static String staticMethod() {}
+  public String instanceVar;
+  public static String staticVar;
+  public String instanceMethod() {}
+  public static String staticMethod() {}
   public Enum Status { ACTIVE, INACTIVE }
   public interface Walkable { void walk(); String pace(); }
-  public class Leg { String name; void move() {} }
+  public class Leg { public String name; public void move() {} }
 }''',
           ),
         ],
@@ -413,9 +413,9 @@ sample.{cursor}''');
             name: 'Animal.cls',
             source: '''
 public class Animal {
-  String name;
-  static Integer count;
-  void speak() {}
+  public String name;
+  public static Integer count;
+  public void speak() {}
 }''',
           ),
         ],

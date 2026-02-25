@@ -289,6 +289,7 @@ void main() {
               DeclarationName('myField'),
               isStatic: false,
               typeName: DeclarationName('String'),
+              visibility: AlwaysVisible(),
             ),
           ],
         );

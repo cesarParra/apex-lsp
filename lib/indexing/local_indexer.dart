@@ -264,6 +264,7 @@ class LocalIndexer {
             FieldMember(
               DeclarationName(fieldName),
               isStatic: isStatic,
+              visibility: AlwaysVisible(),
               typeName: fieldTypeName.isNotEmpty
                   ? DeclarationName(fieldTypeName)
                   : null,

@@ -289,6 +289,22 @@ void main() {
         expect(field.isStatic, isTrue);
       });
 
+      test('sets visibility for fields', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source: 'public class Foo { static String bar; }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final field = result.members.whereType<FieldMember>().first;
+
+        expect(field.visibility, isA<NeverVisible>());
+      });
+
       test('indexes instance class fields', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [

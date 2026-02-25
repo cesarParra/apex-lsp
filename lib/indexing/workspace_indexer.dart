@@ -489,6 +489,9 @@ final class IndexRepository {
               DeclarationName(field.name),
               isStatic: field.isStatic,
               typeName: DeclarationName(field.typeReference.type),
+              visibility: field.isPublic as bool
+                  ? AlwaysVisible()
+                  : NeverVisible(),
             ),
           ),
           ...mirror.properties.map(
@@ -496,6 +499,9 @@ final class IndexRepository {
               DeclarationName(property.name),
               isStatic: property.isStatic,
               typeName: DeclarationName(property.typeReference.type),
+              visibility: property.isPublic as bool
+                  ? AlwaysVisible()
+                  : NeverVisible(),
             ),
           ),
           ...mirror.methods.map(

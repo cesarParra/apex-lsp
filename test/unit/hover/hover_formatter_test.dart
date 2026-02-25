@@ -174,6 +174,7 @@ void main() {
           DeclarationName('status'),
           isStatic: false,
           typeName: DeclarationName('String'),
+          visibility: AlwaysVisible(),
         );
         final resolved = ResolvedField(field);
 
@@ -188,6 +189,7 @@ void main() {
           DeclarationName('MAX_SIZE'),
           isStatic: true,
           typeName: DeclarationName('Integer'),
+          visibility: AlwaysVisible(),
         );
         final resolved = ResolvedField(field);
 
@@ -205,6 +207,7 @@ void main() {
           DeclarationName('name'),
           isStatic: false,
           typeName: DeclarationName('String'),
+          visibility: AlwaysVisible(),
         );
         final resolved = ResolvedField(field, parentType: parentClass);
 

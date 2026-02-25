@@ -606,8 +606,16 @@ void main() {
       final classType = IndexedClass(
         DeclarationName('Foo'),
         members: [
-          FieldMember(DeclarationName('staticMember'), isStatic: true),
-          FieldMember(DeclarationName('instanceMember'), isStatic: false),
+          FieldMember(
+            DeclarationName('staticMember'),
+            isStatic: true,
+            visibility: AlwaysVisible(),
+          ),
+          FieldMember(
+            DeclarationName('instanceMember'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
         ],
       );
       final localVariable = IndexedVariable(
@@ -628,8 +636,16 @@ void main() {
       final classType = IndexedClass(
         DeclarationName('Foo'),
         members: [
-          FieldMember(DeclarationName('staticMember'), isStatic: true),
-          FieldMember(DeclarationName('instanceMember'), isStatic: false),
+          FieldMember(
+            DeclarationName('staticMember'),
+            isStatic: true,
+            visibility: AlwaysVisible(),
+          ),
+          FieldMember(
+            DeclarationName('instanceMember'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
         ],
       );
       final localVariable = IndexedVariable(
@@ -774,7 +790,13 @@ void main() {
         members: [
           IndexedClass(
             DeclarationName('Bar'),
-            members: [FieldMember(DeclarationName('name'), isStatic: false)],
+            members: [
+              FieldMember(
+                DeclarationName('name'),
+                isStatic: false,
+                visibility: AlwaysVisible(),
+              ),
+            ],
           ),
         ],
       );
@@ -794,7 +816,11 @@ void main() {
           IndexedClass(
             DeclarationName('Bar'),
             members: [
-              FieldMember(DeclarationName('name'), isStatic: false),
+              FieldMember(
+                DeclarationName('name'),
+                isStatic: false,
+                visibility: AlwaysVisible(),
+              ),
               MethodDeclaration(
                 DeclarationName('doSomething'),
                 body: Block.empty(),
@@ -1037,7 +1063,11 @@ void main() {
       final environment = IndexedClass(
         DeclarationName('Environment'),
         members: [
-          FieldMember(DeclarationName('variables'), isStatic: false),
+          FieldMember(
+            DeclarationName('variables'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
           MethodDeclaration(
             DeclarationName('define'),
             body: Block.empty(),
@@ -1049,6 +1079,7 @@ void main() {
         DeclarationName('env'),
         isStatic: false,
         typeName: DeclarationName('Environment'),
+        visibility: AlwaysVisible(),
       );
       final completionList = await complete(
         extractCursorPosition('env.{cursor}'),
@@ -1124,7 +1155,13 @@ void main() {
     test('field member completions have field kind', () async {
       final classType = IndexedClass(
         DeclarationName('Foo'),
-        members: [FieldMember(DeclarationName('bar'), isStatic: false)],
+        members: [
+          FieldMember(
+            DeclarationName('bar'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
+        ],
       );
       final localVariable = IndexedVariable(
         DeclarationName('myFoo'),
@@ -1186,7 +1223,11 @@ void main() {
     });
 
     test('top-level field completions have field kind', () async {
-      final field = FieldMember(DeclarationName('myField'), isStatic: false);
+      final field = FieldMember(
+        DeclarationName('myField'),
+        isStatic: false,
+        visibility: AlwaysVisible(),
+      );
       final completionList = await complete(
         extractCursorPosition('{cursor}'),
         index: [field],
@@ -1289,6 +1330,7 @@ void main() {
             DeclarationName('bar'),
             isStatic: false,
             typeName: DeclarationName('String'),
+            visibility: AlwaysVisible(),
           ),
         ],
       );

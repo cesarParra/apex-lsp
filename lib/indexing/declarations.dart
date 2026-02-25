@@ -98,8 +98,12 @@ final class FieldMember extends Declaration {
   final DeclarationName? typeName;
   final bool isStatic;
 
-  FieldMember(super.name, {required this.isStatic, this.typeName})
-    : super(visibility: AlwaysVisible());
+  FieldMember(
+    super.name, {
+    required this.isStatic,
+    required super.visibility,
+    this.typeName,
+  });
 }
 
 final class ConstructorDeclaration extends Declaration {
