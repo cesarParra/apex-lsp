@@ -247,6 +247,7 @@ void main() {
     test('autocomplete members of a parameter typed as an interface', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -280,6 +281,7 @@ void main() {
     test('autocomplete members of a parameter filtered by prefix', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -492,6 +494,7 @@ void main() {
     test('autocomplete interface types at top level', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -513,6 +516,7 @@ void main() {
     test('autocompletes all interface methods via type name', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -541,6 +545,7 @@ void main() {
     test('autocompletes interface methods via variable', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -574,6 +579,7 @@ void main() {
     test('autocompletes interface methods filtered by prefix', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
+        visibility: AlwaysVisible(),
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -754,6 +760,7 @@ void main() {
         members: [
           IndexedInterface(
             DeclarationName('Bar'),
+            visibility: AlwaysVisible(),
             methods: [
               MethodDeclaration(
                 DeclarationName('doSomething'),
@@ -781,6 +788,7 @@ void main() {
         members: [
           IndexedInterface(
             DeclarationName('Bar'),
+            visibility: AlwaysVisible(),
             methods: [
               MethodDeclaration(
                 DeclarationName('m1'),
@@ -1164,6 +1172,7 @@ void main() {
     test('interface completions have interfaceKind', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Greeter'),
+        visibility: AlwaysVisible(),
         methods: [],
       );
       final completionList = await complete(
@@ -1351,6 +1360,7 @@ void main() {
     test('interface completions have "Interface" detail', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Greeter'),
+        visibility: AlwaysVisible(),
         methods: [],
       );
       final completionList = await complete(

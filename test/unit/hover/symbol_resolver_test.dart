@@ -234,6 +234,7 @@ void main() {
         final cursorOffset = text.indexOf('Runnable');
         final iface = IndexedInterface(
           DeclarationName('Runnable'),
+          visibility: AlwaysVisible(),
           methods: [],
         );
         final index = <Declaration>[iface];

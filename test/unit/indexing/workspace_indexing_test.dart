@@ -489,6 +489,26 @@ void main() {
         expect(innerInterfaces.first.methods, hasLength(2));
       });
 
+      test('sets visibility for inner interfaces', () async {
+        final repository = await indexAndCreateRepository(
+          classFiles: [
+            (
+              name: 'Foo.cls',
+              source:
+                  'public class Foo { private interface Bar { void doWork(); String getName(); } }',
+            ),
+          ],
+        );
+
+        final result = await repository.getIndexedType('Foo') as IndexedClass;
+        final innerInterfaces = result.members
+            .whereType<IndexedInterface>()
+            .toList();
+
+        expect(innerInterfaces, hasLength(1));
+        expect(innerInterfaces.first.visibility, isA<NeverVisible>());
+      });
+
       test('indexes inner enums as members', () async {
         final repository = await indexAndCreateRepository(
           classFiles: [

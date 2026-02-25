@@ -455,6 +455,7 @@ final class IndexRepository {
       // TODO: Parse and populate super
       return IndexedInterface(
         DeclarationName(mirror.name),
+        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
         methods: mirror.methods
             .map(
               (method) => MethodDeclaration(

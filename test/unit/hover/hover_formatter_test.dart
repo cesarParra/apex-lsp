@@ -99,6 +99,7 @@ void main() {
       test('shows interface keyword and name', () {
         final iface = IndexedInterface(
           DeclarationName('Runnable'),
+          visibility: AlwaysVisible(),
           methods: [],
         );
         final resolved = ResolvedType(iface);

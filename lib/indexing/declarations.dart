@@ -95,6 +95,7 @@ final class IndexedInterface extends IndexedType {
   IndexedInterface(
     super.name, {
     required this.methods,
+    required super.visibility,
     this.superInterface,
     super.location,
   });

@@ -231,6 +231,7 @@ class LocalIndexer {
     return IndexedInterface(
       DeclarationName(interfaceName),
       methods: methods,
+      visibility: AlwaysVisible(),
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),
