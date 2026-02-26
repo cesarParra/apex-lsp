@@ -326,10 +326,8 @@ Future<CompletionList> onCompletion({
 
   final prefix = context.prefix;
 
-  // When there is no prefix every matching candidate is equally relevant, so
-  // we can stop collecting as soon as we have one more than the cap (enough
-  // to know the list is incomplete without processing the entire index).
-  final earlyStopLimit = prefix.isEmpty ? maxCompletionItems + 1 : null;
+  // Cap the number of candidates we process to one more than the max completion.
+  final earlyStopLimit = maxCompletionItems + 1;
 
   final candidates = <CompletionCandidate>[];
   outer:
@@ -337,7 +335,7 @@ Future<CompletionList> onCompletion({
     for (final candidate in source(context, cursorOffset)) {
       if (!potentiallyMatches(context, candidate)) continue;
       candidates.add(candidate);
-      if (earlyStopLimit != null && candidates.length == earlyStopLimit) {
+      if (candidates.length == earlyStopLimit) {
         break outer;
       }
     }
