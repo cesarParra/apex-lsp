@@ -38,7 +38,8 @@ typedef DeclarationBuilder<T extends Declaration> =
 class LocalIndexer {
   LocalIndexer({required TreeSitterBindings bindings})
     : _bindings = bindings,
-      _parser = bindings.ts_parser_new() {
+      _parser = bindings.ts_parser_new(),
+      _fieldName = _FieldNames() {
     final language = _bindings.tree_sitter_apex();
     final ok = _bindings.ts_parser_set_language(_parser, language);
     if (ok == 0) {
@@ -48,6 +49,11 @@ class LocalIndexer {
 
   final TreeSitterBindings _bindings;
   final Pointer<TSParser> _parser;
+
+  // Pre-allocated native UTF-8 pointers for the fixed set of Tree-sitter field
+  // names used during traversal. Allocating these once avoids a malloc/free
+  // pair on every _getField call (hundreds of times per keystroke).
+  final _FieldNames _fieldName;
 
   /// Parses Apex source code and extracts all declarations.
   ///
@@ -491,16 +497,8 @@ class LocalIndexer {
   /// child nodes. For example, a method_declaration has fields like 'name',
   /// 'parameters', and 'body'.
   TSNode _getField(TSNode node, String fieldName) {
-    final fieldPtr = fieldName.toNativeUtf8();
-    try {
-      return _bindings.ts_node_child_by_field_name(
-        node,
-        fieldPtr,
-        fieldName.length,
-      );
-    } finally {
-      malloc.free(fieldPtr);
-    }
+    final (ptr, length) = _fieldName.lookup(fieldName);
+    return _bindings.ts_node_child_by_field_name(node, ptr, length);
   }
 
   /// Extracts the source text for a Tree-sitter node.
@@ -588,4 +586,31 @@ class LocalIndexer {
 
     return parameters;
   }
+}
+
+/// Pre-allocated native UTF-8 strings for the fixed set of Tree-sitter field
+/// names. Allocated once at construction and never freed — they live for the
+/// duration of the process alongside the [LocalIndexer] that owns them.
+final class _FieldNames {
+  _FieldNames()
+    : name = 'name'.toNativeUtf8(),
+      body = 'body'.toNativeUtf8(),
+      type = 'type'.toNativeUtf8(),
+      parameters = 'parameters'.toNativeUtf8(),
+      declarator = 'declarator'.toNativeUtf8();
+
+  final Pointer<Utf8> name;
+  final Pointer<Utf8> body;
+  final Pointer<Utf8> type;
+  final Pointer<Utf8> parameters;
+  final Pointer<Utf8> declarator;
+
+  (Pointer<Utf8>, int) lookup(String fieldName) => switch (fieldName) {
+    'name' => (name, 4),
+    'body' => (body, 4),
+    'type' => (type, 4),
+    'parameters' => (parameters, 10),
+    'declarator' => (declarator, 10),
+    _ => throw ArgumentError('Unknown Tree-sitter field name: "$fieldName"'),
+  };
 }
