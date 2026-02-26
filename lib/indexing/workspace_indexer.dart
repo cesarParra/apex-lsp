@@ -345,9 +345,12 @@ final class IndexRepository {
   final List<Uri> _workspaceRootUris;
   final IndexRepositoryLog? _log;
 
-  Future<List<IndexedType>> getDeclarations() async {
-    // TODO: Implement caching
+  // Populated on first access and retained for the lifetime of this instance.
+  // A new IndexRepository is created after each re-index, so no explicit
+  // invalidation is needed.
+  final Map<Uri, Map<String, IndexedType>> _cache = {};
 
+  Future<List<IndexedType>> getDeclarations() async {
     final declarations = <IndexedType>[];
     for (final root in _workspaceRootUris) {
       final indexedTypes = await _loadIndexedTypesForWorkspace(root);
@@ -359,27 +362,27 @@ final class IndexRepository {
   Future<IndexedType?> getIndexedType(String typeName) async {
     if (typeName.isEmpty) return null;
 
-    // TODO: Implement caching
-
-    final indexedTypesByName = <String, IndexedType>{};
     for (final root in _workspaceRootUris) {
       final indexedTypes = await _loadIndexedTypesForWorkspace(root);
-      indexedTypesByName.addAll(indexedTypes);
+      final result = indexedTypes[typeName.toLowerCase()];
+      if (result != null) return result;
     }
 
-    return indexedTypesByName[typeName.toLowerCase()];
+    return null;
   }
 
   Future<Map<String, IndexedType>> _loadIndexedTypesForWorkspace(
     Uri workspaceRoot,
   ) async {
+    if (_cache.containsKey(workspaceRoot)) return _cache[workspaceRoot]!;
+
     final rootPath = workspaceRoot.toFilePath(windows: _platform.isWindows);
     final indexDir = _fileSystem.directory(
       _fileSystem.path.join(rootPath, indexFolderName),
     );
     if (!indexDir.existsSync()) {
       _log?.call('Index directory does not exist: ${indexDir.path}');
-      return {};
+      return _cache[workspaceRoot] = {};
     }
 
     final allFiles = indexDir.listSync(recursive: false, followLinks: false);
@@ -430,6 +433,7 @@ final class IndexRepository {
       'Loaded ${indexedTypesByName.length} types from ${jsonFiles.length} files',
     );
 
+    _cache[workspaceRoot] = indexedTypesByName;
     return indexedTypesByName;
   }
 
