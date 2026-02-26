@@ -1,13 +1,26 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'dart:isolate';
 
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:apex_lsp/utils/platform.dart';
-import 'package:apex_lsp/utils/result.dart';
 import 'package:apex_reflection/apex_reflection.dart' as apex_reflection;
 import 'package:file/file.dart';
+
+/// Top-level entry point for isolate execution.
+///
+/// Must be top-level so Dart can send it across isolate boundaries.
+/// Returns the serialized typeMirror JSON, or throws on parse error.
+Future<Map<String, Object?>> _reflectApexSource(String source) async {
+  final response = apex_reflection.Reflection.reflect(source);
+  if (response.error != null) throw response.error!.message;
+  return response.typeMirror!.toJson();
+}
+
+typedef _ApexFile = ({File file, Uri workspaceRoot, Directory indexDir});
 
 final class WorkspaceIndexer {
   WorkspaceIndexer({
@@ -60,7 +73,7 @@ final class WorkspaceIndexer {
       token: token,
       value: const WorkDoneProgressBegin(
         title: 'Indexing Apex files',
-        message: 'Preparing workspace index…',
+        message: 'Indexing…',
         cancellable: false,
       ),
     );
@@ -87,9 +100,6 @@ final class WorkspaceIndexer {
     required ProgressToken token,
   }) async* {
     try {
-      // The current design keeps `_packageDirectoryUris` as a combined scope across
-      // all workspace roots. For indexing, we do a best-effort association:
-      // index each workspace using the package directories that are under it.
       for (final root in workspaceRoots) {
         final rootPath = root.toFilePath(windows: _platform.isWindows);
 
@@ -98,13 +108,10 @@ final class WorkspaceIndexer {
           return pkgPath.startsWith(rootPath);
         }).toList();
 
-        yield* _indexWorkspace(
+        await _indexWorkspace(
           workspaceRoot: root,
           packageDirectoryUris: packageDirsForRoot,
-          token: token,
         );
-
-        // Class names are loaded lazily on demand.
       }
 
       yield WorkDoneProgressParams(
@@ -119,71 +126,48 @@ final class WorkspaceIndexer {
     }
   }
 
-  /// Builds the index for a single workspace.
-  ///
-  /// [workspaceRoot] should be a `file://` URI.
-  /// [packageDirectoryUris] are absolute directory URIs.
-  Stream<WorkDoneProgressParams> _indexWorkspace({
+  Future<void> _indexWorkspace({
     required Uri workspaceRoot,
     required List<Uri> packageDirectoryUris,
-    required ProgressToken token,
-  }) async* {
+  }) async {
     final workspaceRootPath = workspaceRoot.toFilePath(
       windows: _platform.isWindows,
     );
     final workspaceRootDir = _fileSystem.directory(workspaceRootPath);
 
-    // Ensure `.sf-zed` is created under the actual on-disk workspace directory.
     final indexDirPath = _fileSystem.path.join(
       workspaceRootDir.path,
       indexFolderName,
     );
     final indexDir = _fileSystem.directory(indexDirPath);
 
-    // At the moment, we always recreate the index from scratch.
+    // Always recreate the index from scratch.
     if (await indexDir.exists()) {
       await indexDir.delete(recursive: true);
     }
-
     await indexDir.create(recursive: true);
 
-    // Compute total files up-front so we can report accurate progress as we go.
-    final totalFiles = await _countApexFilesToIndex(packageDirectoryUris);
+    final files = await _collectApexFiles(
+      packageDirectoryUris: packageDirectoryUris,
+      workspaceRoot: workspaceRoot,
+      indexDir: indexDir,
+    );
 
-    var processedFiles = 0;
-    var lastReportedPercent = -1;
-
-    for (final pkgDirUri in packageDirectoryUris) {
-      yield* _indexPackageDirectory(
-        pkgDirUri,
-        workspaceRoot,
-        indexDir,
-        totalFiles: totalFiles,
-        processedFiles: processedFiles,
-        lastReportedPercent: lastReportedPercent,
-        token: token,
-      );
-    }
-
-    // Ensure we end on 100% if there was anything to do.
-    if (totalFiles > 0 && lastReportedPercent < 100) {
-      yield WorkDoneProgressParams(
-        token: token,
-        value: WorkDoneProgressReport(percentage: 100),
-      );
-    }
+    await _indexFilesInParallel(files);
   }
 
-  Future<int> _countApexFilesToIndex(List<Uri> packageDirectoryUris) async {
-    var total = 0;
+  Future<List<_ApexFile>> _collectApexFiles({
+    required List<Uri> packageDirectoryUris,
+    required Uri workspaceRoot,
+    required Directory indexDir,
+  }) async {
+    final files = <_ApexFile>[];
 
     for (final pkgDirUri in packageDirectoryUris) {
       final pkgDirPath = pkgDirUri.toFilePath(windows: _platform.isWindows);
       final pkgDir = _fileSystem.directory(pkgDirPath);
 
-      if (!await pkgDir.exists()) {
-        continue;
-      }
+      if (!await pkgDir.exists()) continue;
 
       await for (final entity in pkgDir.list(
         recursive: true,
@@ -191,123 +175,61 @@ final class WorkspaceIndexer {
       )) {
         if (entity is! File) continue;
         if (!entity.path.toLowerCase().endsWith('.cls')) continue;
-        total++;
+        files.add((
+          file: entity,
+          workspaceRoot: workspaceRoot,
+          indexDir: indexDir,
+        ));
       }
     }
 
-    return total;
+    return files;
   }
 
-  Stream<WorkDoneProgressParams> _indexPackageDirectory(
-    Uri pkgDirUri,
-    Uri workspaceRoot,
-    Directory indexDir, {
-    required int totalFiles,
-    required int processedFiles,
-    required int lastReportedPercent,
-    required ProgressToken token,
-  }) async* {
-    final pkgDirPath = pkgDirUri.toFilePath(windows: _platform.isWindows);
-    final pkgDir = _fileSystem.directory(pkgDirPath);
+  Future<void> _indexFilesInParallel(List<_ApexFile> files) async {
+    final batchSize = Platform.numberOfProcessors;
 
-    final exists = await pkgDir.exists();
-
-    if (!exists) {
-      return;
-    }
-
-    await for (final entity in pkgDir.list(
-      recursive: true,
-      followLinks: false,
-    )) {
-      if (entity is! File) {
-        continue;
-      }
-
-      if (!entity.path.toLowerCase().endsWith('.cls')) {
-        continue;
-      }
-
-      final result = await _indexSingleFile(
-        workspaceRoot: workspaceRoot,
-        indexDir: indexDir,
-        apexFile: entity,
-      );
-
-      switch (result) {
-        case Success(:final value):
-          processedFiles++;
-
-          if (totalFiles > 0) {
-            final percent = ((processedFiles * 100) / totalFiles).floor();
-            // Notify every 1% increase based on total file count.
-            if (percent >= 1 &&
-                percent <= 100 &&
-                percent > lastReportedPercent) {
-              lastReportedPercent = percent;
-              yield WorkDoneProgressParams(
-                token: token,
-                value: WorkDoneProgressReport(
-                  percentage: percent,
-                  message: value,
-                  cancellable: false,
-                ),
-              );
-            }
-          }
-        case Failure():
-          // Ignoring indexing issues for now.
-          break;
-      }
+    for (var offset = 0; offset < files.length; offset += batchSize) {
+      final batch = files.skip(offset).take(batchSize).toList();
+      await Future.wait(batch.map(_indexSingleFile));
     }
   }
 
-  Future<Result<String>> _indexSingleFile({
-    required Uri workspaceRoot,
-    required Directory indexDir,
-    required File apexFile,
-  }) async {
+  Future<void> _indexSingleFile(_ApexFile apexFile) async {
     try {
-      final source = await apexFile.readAsString();
-      final reflectionResponse = apex_reflection.Reflection.reflect(source);
-
-      if (reflectionResponse.error != null) {
-        return Failure(reflectionResponse.error!.message);
-      }
-
-      final className = reflectionResponse.typeMirror!.name;
-
-      final outPath = _fileSystem.path.join(indexDir.path, '$className.json');
-      final outFile = _fileSystem.file(outPath);
-
-      final relativePath = _safeRelativePath(
-        fromRoot: workspaceRoot,
-        absolutePath: apexFile.path,
+      final source = await apexFile.file.readAsString();
+      final typeMirrorJson = await Isolate.run(
+        () => _reflectApexSource(source),
       );
 
-      // TODO: This can be a standalone object rather than using maps
+      final className = typeMirrorJson['name'] as String;
+      final relativePath = _safeRelativePath(
+        fromRoot: apexFile.workspaceRoot,
+        absolutePath: apexFile.file.path,
+      );
+
       final payload = <String, Object?>{
         'schemaVersion': 1,
         'className': className,
         'source': <String, Object?>{
-          'uri': Uri.file(apexFile.path).toString(),
+          'uri': Uri.file(apexFile.file.path).toString(),
           'relativePath': relativePath,
         },
-        'typeMirror': reflectionResponse.typeMirror!.toJson(),
+        'typeMirror': typeMirrorJson,
       };
 
-      await outFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(payload),
+      final outPath = _fileSystem.path.join(
+        apexFile.indexDir.path,
+        '$className.json',
       );
-
-      return Success(reflectionResponse.typeMirror!.name);
-    } catch (e) {
-      return Failure('Failed to index ${apexFile.path}: $e');
+      await _fileSystem
+          .file(outPath)
+          .writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+    } catch (_) {
+      // Silently skip files that fail to reflect or write.
     }
   }
 
-  /// Returns a best-effort relative path from [fromRoot] to [absolutePath].
-  /// If the paths can’t be made relative (different roots), returns [absolutePath].
   String _safeRelativePath({
     required Uri fromRoot,
     required String absolutePath,
