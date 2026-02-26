@@ -67,7 +67,7 @@ void main() {
       final token = ProgressToken.string('test-token');
       final progressEvents = await indexer.index(params, token: token).toList();
 
-      expect(progressEvents, isNotEmpty);
+      expect(progressEvents, hasLength(2));
       expect(
         (progressEvents.first.value as WorkDoneProgressBegin).title,
         equals('Indexing Apex files'),
@@ -89,6 +89,55 @@ void main() {
         metadata['source']['relativePath'],
         equals('force-app/main/default/classes/Foo.cls'),
       );
+    });
+
+    test('indexes multiple files in parallel', () async {
+      final projectFile = workspaceRoot.childFile('sfdx-project.json');
+      projectFile.writeAsStringSync(
+        jsonEncode({
+          'packageDirectories': [
+            {'path': 'force-app', 'default': true},
+          ],
+        }),
+      );
+
+      final classesDir = fs.directory('/repo/force-app/main/default/classes')
+        ..createSync(recursive: true);
+
+      final classDefinitions = [
+        ('Alpha.cls', 'public class Alpha {}'),
+        ('Beta.cls', 'public class Beta {}'),
+        ('Gamma.cls', 'public class Gamma {}'),
+        ('Delta.cls', 'public class Delta {}'),
+        ('Epsilon.cls', 'public class Epsilon {}'),
+      ];
+
+      for (final (fileName, source) in classDefinitions) {
+        classesDir.childFile(fileName).writeAsStringSync(source);
+      }
+
+      final params = InitializedParams([
+        WorkspaceFolder(workspaceUri.toString(), 'repo'),
+      ]);
+
+      await indexer
+          .index(params, token: ProgressToken.string('test-token'))
+          .drain<void>();
+
+      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      expect(indexDir.existsSync(), isTrue);
+
+      for (final (fileName, _) in classDefinitions) {
+        final className = fileName.replaceAll('.cls', '');
+        final metadataFile = indexDir.childFile('$className.json');
+        expect(
+          metadataFile.existsSync(),
+          isTrue,
+          reason: '$className.json should have been indexed',
+        );
+        final metadata = jsonDecode(metadataFile.readAsStringSync());
+        expect(metadata['className'], equals(className));
+      }
     });
 
     test('skips indexing if no workspace folders provided', () async {
