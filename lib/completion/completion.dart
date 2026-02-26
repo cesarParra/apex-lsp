@@ -83,6 +83,10 @@ typedef CompletionDataSource =
 
 /// Returns a [CompletionDataSource] that contributes candidates from [index].
 ///
+/// [index] must already be scope-expanded for the current cursor position
+/// (i.e. body declarations for the enclosing scope have been added by the
+/// caller before passing it here).
+///
 /// Handles both top-level and member-access contexts:
 /// - [CompletionContextTopLevel]: maps visible declarations to the appropriate
 ///   candidate subtype ([ApexTypeCandidate], [LocalVariableCandidate],
@@ -90,27 +94,16 @@ typedef CompletionDataSource =
 /// - [CompletionContextMember]: resolves the type before the dot and returns
 ///   its members.
 /// - [CompletionContextNone]: returns empty.
-///
-/// The [index] is the raw declaration list. The source expands it internally
-/// (adding body declarations for the enclosing scope) on each call.
-CompletionDataSource declarationSource(List<Declaration> index) {
-  return (context, cursorOffset) {
-    final enclosing = index.enclosingAt<Declaration>(cursorOffset);
-    final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
-    return switch (context) {
+CompletionDataSource declarationSource(List<Declaration> index) =>
+    (context, cursorOffset) => switch (context) {
       CompletionContextNone() => <CompletionCandidate>[],
-      CompletionContextTopLevel() => _topLevelCandidates(
-        expandedIndex,
-        cursorOffset,
-      ),
+      CompletionContextTopLevel() => _topLevelCandidates(index, cursorOffset),
       CompletionContextMember() => _memberCandidates(
-        expandedIndex,
+        index,
         cursorOffset,
         context,
       ),
     };
-  };
-}
 
 /// A [CompletionDataSource] that contributes all Apex reserved keywords.
 ///
@@ -128,24 +121,23 @@ List<CompletionCandidate> keywordSource(
 List<CompletionCandidate> _topLevelCandidates(
   List<Declaration> index,
   int cursorOffset,
-) => index
-    .where((declaration) => declaration.isVisibleAt(cursorOffset))
-    .map(
-      (declaration) => switch (declaration) {
-        IndexedType() => ApexTypeCandidate(declaration),
-        IndexedVariable() => LocalVariableCandidate(declaration),
-        FieldMember() ||
-        MethodDeclaration() ||
-        EnumValueMember() => MemberCandidate(
-          declaration,
-          parentType: index.enclosingAt<IndexedType>(cursorOffset),
-        ),
-        ConstructorDeclaration() => throw UnsupportedError(
-          'Autocompleting constructors is not supported at the moment',
-        ),
-      },
-    )
-    .toList();
+) {
+  final enclosingType = index.enclosingAt<IndexedType>(cursorOffset);
+  return index
+      .where((declaration) => declaration.isVisibleAt(cursorOffset))
+      .map(
+        (declaration) => switch (declaration) {
+          IndexedType() => ApexTypeCandidate(declaration),
+          IndexedVariable() => LocalVariableCandidate(declaration),
+          FieldMember() || MethodDeclaration() || EnumValueMember() =>
+            MemberCandidate(declaration, parentType: enclosingType),
+          ConstructorDeclaration() => throw UnsupportedError(
+            'Autocompleting constructors is not supported at the moment',
+          ),
+        },
+      )
+      .toList();
+}
 
 List<CompletionCandidate> _memberCandidates(
   List<Declaration> index,
@@ -323,40 +315,36 @@ Future<CompletionList> onCompletion({
     'indexedTypes=$indexedTypeCount',
   );
 
-  final enclosing = index.enclosingAt<Declaration>(cursorOffset);
-  final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
-
   final contextDetector = ContextDetector();
   final context = await contextDetector.detect(
     text: text,
     cursorOffset: cursorOffset,
-    index: expandedIndex,
+    index: index,
   );
 
   log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');
 
-  final candidates = [
-    for (final source in sources) ...source(context, cursorOffset),
-  ];
+  final prefix = context.prefix;
 
-  log?.call('Total candidates before filtering: ${candidates.length}');
+  // Cap the number of candidates we process to one more than the max completion.
+  final earlyStopLimit = maxCompletionItems + 1;
 
-  final filteredCandidates = candidates
-      .where((candidate) => potentiallyMatches(context, candidate))
-      .toList();
-
-  log?.call(
-    'After prefix filter: ${filteredCandidates.length} '
-    '(prefix="${context.prefix}")',
+  List<CompletionCandidate> candidates = retrieveCompletionCandidates(
+    sources,
+    context,
+    cursorOffset,
+    earlyStopLimit,
   );
 
-  final prefix = context.prefix;
-  final rankedItems = rankCandidates(
-    filteredCandidates,
-    prefix,
-  ).take(maxCompletionItems).map(_toCompletionItem).toList();
+  log?.call('Candidates after filtering: ${candidates.length}');
 
-  final isIncomplete = filteredCandidates.length > maxCompletionItems;
+  final isIncomplete = candidates.length > maxCompletionItems;
+
+  final rankedItems = rankCandidates(
+    candidates,
+    prefix,
+    limit: maxCompletionItems,
+  ).map(_toCompletionItem).toList();
 
   log?.call(
     'Returning ${rankedItems.length} items, '
@@ -365,6 +353,19 @@ Future<CompletionList> onCompletion({
   );
 
   return CompletionList(isIncomplete: isIncomplete, items: rankedItems);
+}
+
+List<CompletionCandidate> retrieveCompletionCandidates(
+  List<CompletionDataSource> sources,
+  CompletionContext context,
+  int cursorOffset,
+  int earlyStopLimit,
+) {
+  return sources
+      .expand((source) => source(context, cursorOffset))
+      .where((candidate) => potentiallyMatches(context, candidate))
+      .take(earlyStopLimit)
+      .toList();
 }
 
 /// Determines if a completion candidate potentially matches the completion context.

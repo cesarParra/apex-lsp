@@ -190,7 +190,7 @@ public class Animal {
           (
             name: 'AnimalTest.cls',
             source: '''
-private class Animal {
+private class AnimalTest {
 }''',
           ),
         ],

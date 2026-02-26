@@ -16,7 +16,14 @@ typedef Rank =
       String prefix,
     );
 
-/// Ranks completion candidates by relevance to the prefix.
+typedef _ScoredCandidate = ({
+  CompletionCandidate candidate,
+  int editDistance,
+  int nameLength,
+});
+
+/// Ranks completion candidates by relevance to the prefix, returning at most
+/// [limit] results.
 ///
 /// Uses Levenshtein distance to measure similarity between the prefix and
 /// candidate names. Candidates are ranked by:
@@ -26,9 +33,13 @@ typedef Rank =
 ///
 /// - [candidates]: The completion candidates to rank.
 /// - [prefix]: The partial identifier being typed. Case-insensitive comparison.
+/// - [limit]: Maximum number of results to return. Defaults to returning all.
+///
+/// Uses a bounded insertion strategy — O(n × limit) rather than O(n log n) —
+/// which is significantly faster when [limit] is small (e.g. 25).
 ///
 /// Returns candidates sorted by relevance. When [prefix] is empty, returns
-/// candidates in their original order.
+/// candidates in their original order (up to [limit]).
 ///
 /// Example:
 /// ```dart
@@ -46,38 +57,64 @@ typedef Rank =
 ///  * [levenshteinDistance], which computes edit distance.
 Iterable<CompletionCandidate> rankCandidates(
   Iterable<CompletionCandidate> candidates,
-  String prefix,
-) {
-  // No ranking needed for empty prefix
-  if (prefix.isEmpty) return candidates;
+  String prefix, {
+  int? limit,
+}) {
+  if (prefix.isEmpty) {
+    return limit == null ? candidates : candidates.take(limit);
+  }
+
   final lowerPrefix = prefix.toLowerCase();
 
-  // Score each candidate with distance and length metrics
-  final scored =
-      candidates
-          .map(
-            (candidate) => (
-              candidate: candidate,
-              length: candidate.name.length,
-              distance: levenshteinDistance(
-                lowerPrefix,
-                candidate.name.toLowerCase(),
-              ),
-            ),
-          )
-          .toList()
-        ..sort((a, b) {
-          // Primary sort: smallest edit distance (most similar)
-          final byDistance = a.distance.compareTo(b.distance);
-          if (byDistance != 0) return byDistance;
+  // Bounded insertion: maintain a sorted list of at most [limit] entries.
+  // For each candidate we compute its score and binary-search for its
+  // insertion point. When the buffer is full, candidates that score worse
+  // than the current worst are skipped without further work.
+  final rankedBuffer = <_ScoredCandidate>[];
 
-          // Secondary sort: shortest name (prefer concise options)
-          final byLength = a.length.compareTo(b.length);
-          if (byLength != 0) return byLength;
+  for (final candidate in candidates) {
+    final scored = _scoreFor(candidate, lowerPrefix);
 
-          // Tertiary sort: alphabetical (consistent tie-breaking)
-          return a.candidate.name.compareTo(b.candidate.name);
-        });
+    if (limit != null && rankedBuffer.length == limit) {
+      if (_compareScore(scored, rankedBuffer.last) >= 0) continue;
+      rankedBuffer.removeLast();
+    }
 
-  return scored.map((c) => c.candidate).toList();
+    _insertSorted(rankedBuffer, scored);
+  }
+
+  return rankedBuffer.map((scored) => scored.candidate);
+}
+
+_ScoredCandidate _scoreFor(CompletionCandidate candidate, String lowerPrefix) {
+  return (
+    candidate: candidate,
+    editDistance: levenshteinDistance(
+      lowerPrefix,
+      candidate.name.toLowerCase(),
+    ),
+    nameLength: candidate.name.length,
+  );
+}
+
+int _compareScore(_ScoredCandidate a, _ScoredCandidate b) {
+  final byDistance = a.editDistance.compareTo(b.editDistance);
+  if (byDistance != 0) return byDistance;
+  final byLength = a.nameLength.compareTo(b.nameLength);
+  if (byLength != 0) return byLength;
+  return a.candidate.name.compareTo(b.candidate.name);
+}
+
+void _insertSorted(List<_ScoredCandidate> sortedList, _ScoredCandidate entry) {
+  var low = 0;
+  var high = sortedList.length;
+  while (low < high) {
+    final mid = (low + high) >>> 1;
+    if (_compareScore(sortedList[mid], entry) <= 0) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  sortedList.insert(low, entry);
 }
