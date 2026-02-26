@@ -329,17 +329,12 @@ Future<CompletionList> onCompletion({
   // Cap the number of candidates we process to one more than the max completion.
   final earlyStopLimit = maxCompletionItems + 1;
 
-  final candidates = <CompletionCandidate>[];
-  outer:
-  for (final source in sources) {
-    for (final candidate in source(context, cursorOffset)) {
-      if (!potentiallyMatches(context, candidate)) continue;
-      candidates.add(candidate);
-      if (candidates.length == earlyStopLimit) {
-        break outer;
-      }
-    }
-  }
+  List<CompletionCandidate> candidates = retrieveCompletionCandidates(
+    sources,
+    context,
+    cursorOffset,
+    earlyStopLimit,
+  );
 
   log?.call('Candidates after filtering: ${candidates.length}');
 
@@ -358,6 +353,19 @@ Future<CompletionList> onCompletion({
   );
 
   return CompletionList(isIncomplete: isIncomplete, items: rankedItems);
+}
+
+List<CompletionCandidate> retrieveCompletionCandidates(
+  List<CompletionDataSource> sources,
+  CompletionContext context,
+  int cursorOffset,
+  int earlyStopLimit,
+) {
+  return sources
+      .expand((source) => source(context, cursorOffset))
+      .where((candidate) => potentiallyMatches(context, candidate))
+      .take(earlyStopLimit)
+      .toList();
 }
 
 /// Determines if a completion candidate potentially matches the completion context.

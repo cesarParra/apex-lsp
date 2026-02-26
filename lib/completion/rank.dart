@@ -16,6 +16,12 @@ typedef Rank =
       String prefix,
     );
 
+typedef _ScoredCandidate = ({
+  CompletionCandidate candidate,
+  int editDistance,
+  int nameLength,
+});
+
 /// Ranks completion candidates by relevance to the prefix, returning at most
 /// [limit] results.
 ///
@@ -54,7 +60,6 @@ Iterable<CompletionCandidate> rankCandidates(
   String prefix, {
   int? limit,
 }) {
-  // No ranking needed for empty prefix
   if (prefix.isEmpty) {
     return limit == null ? candidates : candidates.take(limit);
   }
@@ -65,49 +70,51 @@ Iterable<CompletionCandidate> rankCandidates(
   // For each candidate we compute its score and binary-search for its
   // insertion point. When the buffer is full, candidates that score worse
   // than the current worst are skipped without further work.
-  final topK = <({CompletionCandidate candidate, int distance, int length})>[];
-
-  int compareScore(
-    ({CompletionCandidate candidate, int distance, int length}) a,
-    ({CompletionCandidate candidate, int distance, int length}) b,
-  ) {
-    final byDistance = a.distance.compareTo(b.distance);
-    if (byDistance != 0) return byDistance;
-    final byLength = a.length.compareTo(b.length);
-    if (byLength != 0) return byLength;
-    return a.candidate.name.compareTo(b.candidate.name);
-  }
+  final rankedBuffer = <_ScoredCandidate>[];
 
   for (final candidate in candidates) {
-    final distance = levenshteinDistance(
-      lowerPrefix,
-      candidate.name.toLowerCase(),
-    );
-    final entry = (
-      candidate: candidate,
-      distance: distance,
-      length: candidate.name.length,
-    );
+    final scored = _scoreFor(candidate, lowerPrefix);
 
-    if (limit != null && topK.length == limit) {
-      // Buffer is full — only insert if this entry beats the current worst.
-      if (compareScore(entry, topK.last) >= 0) continue;
-      topK.removeLast();
+    if (limit != null && rankedBuffer.length == limit) {
+      if (_compareScore(scored, rankedBuffer.last) >= 0) continue;
+      rankedBuffer.removeLast();
     }
 
-    // Binary search for the correct insertion position to keep topK sorted.
-    var lo = 0;
-    var hi = topK.length;
-    while (lo < hi) {
-      final mid = (lo + hi) >>> 1;
-      if (compareScore(topK[mid], entry) <= 0) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
-    topK.insert(lo, entry);
+    _insertSorted(rankedBuffer, scored);
   }
 
-  return topK.map((e) => e.candidate);
+  return rankedBuffer.map((scored) => scored.candidate);
+}
+
+_ScoredCandidate _scoreFor(CompletionCandidate candidate, String lowerPrefix) {
+  return (
+    candidate: candidate,
+    editDistance: levenshteinDistance(
+      lowerPrefix,
+      candidate.name.toLowerCase(),
+    ),
+    nameLength: candidate.name.length,
+  );
+}
+
+int _compareScore(_ScoredCandidate a, _ScoredCandidate b) {
+  final byDistance = a.editDistance.compareTo(b.editDistance);
+  if (byDistance != 0) return byDistance;
+  final byLength = a.nameLength.compareTo(b.nameLength);
+  if (byLength != 0) return byLength;
+  return a.candidate.name.compareTo(b.candidate.name);
+}
+
+void _insertSorted(List<_ScoredCandidate> sortedList, _ScoredCandidate entry) {
+  var low = 0;
+  var high = sortedList.length;
+  while (low < high) {
+    final mid = (low + high) >>> 1;
+    if (_compareScore(sortedList[mid], entry) <= 0) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  sortedList.insert(low, entry);
 }
