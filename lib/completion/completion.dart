@@ -324,28 +324,34 @@ Future<CompletionList> onCompletion({
 
   log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');
 
-  final candidates = [
-    for (final source in sources) ...source(context, cursorOffset),
-  ];
-
-  log?.call('Total candidates before filtering: ${candidates.length}');
-
-  final filteredCandidates = candidates
-      .where((candidate) => potentiallyMatches(context, candidate))
-      .toList();
-
-  log?.call(
-    'After prefix filter: ${filteredCandidates.length} '
-    '(prefix="${context.prefix}")',
-  );
-
   final prefix = context.prefix;
-  final rankedItems = rankCandidates(
-    filteredCandidates,
-    prefix,
-  ).take(maxCompletionItems).map(_toCompletionItem).toList();
 
-  final isIncomplete = filteredCandidates.length > maxCompletionItems;
+  // When there is no prefix every matching candidate is equally relevant, so
+  // we can stop collecting as soon as we have one more than the cap (enough
+  // to know the list is incomplete without processing the entire index).
+  final earlyStopLimit = prefix.isEmpty ? maxCompletionItems + 1 : null;
+
+  final candidates = <CompletionCandidate>[];
+  outer:
+  for (final source in sources) {
+    for (final candidate in source(context, cursorOffset)) {
+      if (!potentiallyMatches(context, candidate)) continue;
+      candidates.add(candidate);
+      if (earlyStopLimit != null && candidates.length == earlyStopLimit) {
+        break outer;
+      }
+    }
+  }
+
+  log?.call('Candidates after filtering: ${candidates.length}');
+
+  final isIncomplete = candidates.length > maxCompletionItems;
+
+  final rankedItems = rankCandidates(
+    candidates,
+    prefix,
+    limit: maxCompletionItems,
+  ).map(_toCompletionItem).toList();
 
   log?.call(
     'Returning ${rankedItems.length} items, '
