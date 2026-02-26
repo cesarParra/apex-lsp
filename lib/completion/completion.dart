@@ -83,6 +83,10 @@ typedef CompletionDataSource =
 
 /// Returns a [CompletionDataSource] that contributes candidates from [index].
 ///
+/// [index] must already be scope-expanded for the current cursor position
+/// (i.e. body declarations for the enclosing scope have been added by the
+/// caller before passing it here).
+///
 /// Handles both top-level and member-access contexts:
 /// - [CompletionContextTopLevel]: maps visible declarations to the appropriate
 ///   candidate subtype ([ApexTypeCandidate], [LocalVariableCandidate],
@@ -90,27 +94,16 @@ typedef CompletionDataSource =
 /// - [CompletionContextMember]: resolves the type before the dot and returns
 ///   its members.
 /// - [CompletionContextNone]: returns empty.
-///
-/// The [index] is the raw declaration list. The source expands it internally
-/// (adding body declarations for the enclosing scope) on each call.
-CompletionDataSource declarationSource(List<Declaration> index) {
-  return (context, cursorOffset) {
-    final enclosing = index.enclosingAt<Declaration>(cursorOffset);
-    final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
-    return switch (context) {
+CompletionDataSource declarationSource(List<Declaration> index) =>
+    (context, cursorOffset) => switch (context) {
       CompletionContextNone() => <CompletionCandidate>[],
-      CompletionContextTopLevel() => _topLevelCandidates(
-        expandedIndex,
-        cursorOffset,
-      ),
+      CompletionContextTopLevel() => _topLevelCandidates(index, cursorOffset),
       CompletionContextMember() => _memberCandidates(
-        expandedIndex,
+        index,
         cursorOffset,
         context,
       ),
     };
-  };
-}
 
 /// A [CompletionDataSource] that contributes all Apex reserved keywords.
 ///
@@ -323,14 +316,11 @@ Future<CompletionList> onCompletion({
     'indexedTypes=$indexedTypeCount',
   );
 
-  final enclosing = index.enclosingAt<Declaration>(cursorOffset);
-  final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
-
   final contextDetector = ContextDetector();
   final context = await contextDetector.detect(
     text: text,
     cursorOffset: cursorOffset,
-    index: expandedIndex,
+    index: index,
   );
 
   log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');

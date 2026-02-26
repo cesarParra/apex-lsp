@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:apex_lsp/cancellation_tracker.dart';
 import 'package:apex_lsp/completion/completion.dart';
+import 'package:apex_lsp/completion/helpers.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
+import 'package:apex_lsp/indexing/declarations.dart';
+import 'package:apex_lsp/utils/text_utils.dart';
 import 'package:apex_lsp/gitignore.dart';
 import 'package:apex_lsp/handlers/requests/on_hover.dart';
 import 'package:apex_lsp/handlers/requests/on_initialize.dart';
@@ -355,11 +358,20 @@ final class Server {
     );
 
     final index = [...localIndex, ...workspaceTypes];
+
+    final cursorOffset = offsetAtPosition(
+      text: text,
+      line: params.position.line,
+      character: params.position.character,
+    );
+    final enclosing = index.enclosingAt<Declaration>(cursorOffset);
+    final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
+
     final completionList = await onCompletion(
       text: text,
       position: params.position,
-      index: index,
-      sources: [declarationSource(index), keywordSource],
+      index: expandedIndex,
+      sources: [declarationSource(expandedIndex), keywordSource],
       log: (message) => logMessage(MessageType.log, '[apex-lsp] $message'),
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
