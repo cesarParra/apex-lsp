@@ -121,24 +121,23 @@ List<CompletionCandidate> keywordSource(
 List<CompletionCandidate> _topLevelCandidates(
   List<Declaration> index,
   int cursorOffset,
-) => index
-    .where((declaration) => declaration.isVisibleAt(cursorOffset))
-    .map(
-      (declaration) => switch (declaration) {
-        IndexedType() => ApexTypeCandidate(declaration),
-        IndexedVariable() => LocalVariableCandidate(declaration),
-        FieldMember() ||
-        MethodDeclaration() ||
-        EnumValueMember() => MemberCandidate(
-          declaration,
-          parentType: index.enclosingAt<IndexedType>(cursorOffset),
-        ),
-        ConstructorDeclaration() => throw UnsupportedError(
-          'Autocompleting constructors is not supported at the moment',
-        ),
-      },
-    )
-    .toList();
+) {
+  final enclosingType = index.enclosingAt<IndexedType>(cursorOffset);
+  return index
+      .where((declaration) => declaration.isVisibleAt(cursorOffset))
+      .map(
+        (declaration) => switch (declaration) {
+          IndexedType() => ApexTypeCandidate(declaration),
+          IndexedVariable() => LocalVariableCandidate(declaration),
+          FieldMember() || MethodDeclaration() || EnumValueMember() =>
+            MemberCandidate(declaration, parentType: enclosingType),
+          ConstructorDeclaration() => throw UnsupportedError(
+            'Autocompleting constructors is not supported at the moment',
+          ),
+        },
+      )
+      .toList();
+}
 
 List<CompletionCandidate> _memberCandidates(
   List<Declaration> index,
