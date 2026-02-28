@@ -16,7 +16,7 @@ version is automatically installed for you.
 - Only local files
 - Only Apex files (no SObjects)
 
-- ### Autocompletion
+### Autocompletion
 
 ### Limitations
 - No inheritance support (`super.` calls are not autocompleted)
