@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:apex_lsp/version.dart';
 import 'package:test/test.dart';
 
 import '../../support/lsp_client.dart';
@@ -38,6 +39,7 @@ void main() {
       expect(result, hasCapability('completionProvider'));
       expect(result, hasCapability('textDocumentSync'));
       expect(result.serverInfo, isNotNull);
+      expect(result.serverInfo?.version, equals(packageVersion));
     });
 
     test(

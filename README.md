@@ -42,6 +42,16 @@ From the repo root:
 dart run bin/apex_lsp.dart
 ```
 
+### Versioning
+
+The server version reported to LSP clients is kept in `lib/version.dart`, which is generated from `pubspec.yaml`. After bumping `version:` in `pubspec.yaml`, regenerate it:
+
+```bash
+dart run tool/generate_version.dart
+```
+
+Commit both `pubspec.yaml` and the updated `lib/version.dart` together.
+
 ### Integration tests (Tree-sitter)
 
 The integration tests use a native Tree-sitter Apex library built by `tool/build_tree_sitter_lib.sh`. The script clones the Tree-sitter runtime and `tree-sitter-sfapex` into `.tree-sitter-build`, so the grammar does not need to live in this repo. This setup is supported on macOS (`.dylib`) and Linux (`.so`).
