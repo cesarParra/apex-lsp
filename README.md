@@ -22,7 +22,7 @@ version is automatically installed for you.
 - No inheritance support (`super.` calls are not autocompleted)
 - No Apexdocs support
 
-- ### Hover
+### Hover
 
 ### Limitations
 - No Apexdocs support
