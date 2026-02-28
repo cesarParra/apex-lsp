@@ -516,6 +516,155 @@ public enum Color { RED, GREEN, BLUE }
 
           expect(completions, containsCompletion('bar'));
         });
+
+        test('completes class members from getter block', () async {
+          final textWithPosition = extractCursorPosition('''
+      public class Animal {
+        public String Name {
+          get {
+            {cursor}
+          }
+        }
+
+        static String fooMethod() {}
+      }''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('fooMethod'));
+        });
+
+        test('completes local declarations in getter block', () async {
+          final textWithPosition = extractCursorPosition('''
+      public class Animal {
+        public String Name {
+          get {
+            String localVar;
+            {cursor}
+          }
+        }
+      }''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('localVar'));
+        });
+
+        test(
+          'completes members via dot access on local variable in getter block',
+          () async {
+            final textWithPosition = extractCursorPosition('''
+      public class Env {
+        void define() {}
+      }
+      public class Animal {
+        public String Name {
+          get {
+            Env env;
+            env.{cursor}
+          }
+        }
+      }''');
+            final document = Document.withText(textWithPosition.text);
+            await client.openDocument(document);
+
+            final completions = await client.completion(
+              uri: document.uri,
+              line: textWithPosition.position.line,
+              character: textWithPosition.position.character,
+            );
+
+            expect(completions, containsCompletion('define'));
+          },
+        );
+
+        test('completes class members from setter block', () async {
+          final textWithPosition = extractCursorPosition('''
+      public class Animal {
+        public String Name {
+          get;
+          set {
+            {cursor}
+          }
+        }
+
+        static String fooMethod() {}
+      }''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('fooMethod'));
+        });
+
+        test('completes local declarations in setter block', () async {
+          final textWithPosition = extractCursorPosition('''
+      public class Animal {
+        public String Name {
+          get;
+          set {
+            String transformed;
+            {cursor}
+          }
+        }
+      }''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('transformed'));
+        });
+
+        test(
+          'completes members via dot access on local variable in setter block',
+          () async {
+            final textWithPosition = extractCursorPosition('''
+      public class Env {
+        void define() {}
+      }
+      public class Animal {
+        public String Name {
+          get;
+          set {
+            Env env;
+            env.{cursor}
+          }
+        }
+      }''');
+            final document = Document.withText(textWithPosition.text);
+            await client.openDocument(document);
+
+            final completions = await client.completion(
+              uri: document.uri,
+              line: textWithPosition.position.line,
+              character: textWithPosition.position.character,
+            );
+
+            expect(completions, containsCompletion('define'));
+          },
+        );
       });
     });
 
