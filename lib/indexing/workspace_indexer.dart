@@ -141,11 +141,9 @@ final class WorkspaceIndexer {
     );
     final indexDir = _fileSystem.directory(indexDirPath);
 
-    // Always recreate the index from scratch.
-    if (await indexDir.exists()) {
-      await indexDir.delete(recursive: true);
+    if (!await indexDir.exists()) {
+      await indexDir.create(recursive: true);
     }
-    await indexDir.create(recursive: true);
 
     final files = await _collectApexFiles(
       packageDirectoryUris: packageDirectoryUris,
@@ -153,7 +151,54 @@ final class WorkspaceIndexer {
       indexDir: indexDir,
     );
 
-    await _indexFilesInParallel(files);
+    final staleFiles = await _filterStaleFiles(files, indexDir);
+    await _indexFilesInParallel(staleFiles);
+    await _removeOrphanedIndexFiles(files, indexDir);
+  }
+
+  Future<List<_ApexFile>> _filterStaleFiles(
+    List<_ApexFile> files,
+    Directory indexDir,
+  ) async {
+    final stale = <_ApexFile>[];
+    for (final file in files) {
+      if (await _isStale(file.file, indexDir)) stale.add(file);
+    }
+    return stale;
+  }
+
+  Future<bool> _isStale(File clsFile, Directory indexDir) async {
+    final stem = _fileSystem.path.basenameWithoutExtension(clsFile.path);
+    final jsonFile = _fileSystem.file(
+      _fileSystem.path.join(indexDir.path, '$stem.json'),
+    );
+    if (!await jsonFile.exists()) return true;
+    final clsModified = await clsFile.lastModified();
+    final jsonModified = await jsonFile.lastModified();
+    return clsModified.isAfter(jsonModified);
+  }
+
+  Future<void> _removeOrphanedIndexFiles(
+    List<_ApexFile> sourceFiles,
+    Directory indexDir,
+  ) async {
+    final knownStems = sourceFiles
+        .map(
+          (file) => _fileSystem.path
+              .basenameWithoutExtension(file.file.path)
+              .toLowerCase(),
+        )
+        .toSet();
+
+    await for (final entity in indexDir.list()) {
+      if (entity is! File || !entity.path.endsWith('.json')) continue;
+      final stem = _fileSystem.path
+          .basenameWithoutExtension(entity.path)
+          .toLowerCase();
+      if (!knownStems.contains(stem)) {
+        await entity.delete();
+      }
+    }
   }
 
   Future<List<_ApexFile>> _collectApexFiles({
