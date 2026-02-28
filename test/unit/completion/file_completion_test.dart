@@ -1461,6 +1461,165 @@ void main() {
     });
   });
 
+  group('sobjects', () {
+    test('autocomplete SObject type at top level', () async {
+      final sobject = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [],
+        visibility: AlwaysVisible(),
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [sobject],
+      );
+
+      expect(completionList.items, hasLength(1));
+      expect(completionList.items.first.label, 'Account');
+    });
+
+    test('prefix filters SObject names', () async {
+      final account = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [],
+        visibility: AlwaysVisible(),
+      );
+      final contact = IndexedSObject(
+        DeclarationName('Contact'),
+        fields: [],
+        visibility: AlwaysVisible(),
+      );
+      final completionList = await complete(
+        extractCursorPosition('Acc{cursor}'),
+        index: [account, contact],
+      );
+
+      expect(completionList.items, hasLength(1));
+      expect(completionList.items.first.label, 'Account');
+    });
+
+    test('SObject completions have classKind', () async {
+      final sobject = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [],
+        visibility: AlwaysVisible(),
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [sobject],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('Account', CompletionItemKind.classKind),
+      );
+    });
+
+    test('SObject completions have "SObject" detail', () async {
+      final sobject = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [],
+        visibility: AlwaysVisible(),
+      );
+      final completionList = await complete(
+        extractCursorPosition('{cursor}'),
+        index: [sobject],
+      );
+
+      expect(completionList, completionWithDetail('Account', 'SObject'));
+    });
+
+    test('autocomplete SObject fields after dot on variable', () async {
+      final sobject = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [
+          FieldMember(
+            DeclarationName('Industry__c'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
+          FieldMember(
+            DeclarationName('Rating__c'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
+        ],
+        visibility: AlwaysVisible(),
+      );
+      final variable = IndexedVariable(
+        DeclarationName('acc'),
+        typeName: DeclarationName('Account'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('acc.{cursor}'),
+        index: [sobject, variable],
+      );
+
+      expect(completionList.items, hasLength(2));
+      expect(completionList, containsCompletion('Industry__c'));
+      expect(completionList, containsCompletion('Rating__c'));
+    });
+
+    test('prefix filters SObject fields', () async {
+      final sobject = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [
+          FieldMember(
+            DeclarationName('Industry__c'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
+          FieldMember(
+            DeclarationName('Rating__c'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
+        ],
+        visibility: AlwaysVisible(),
+      );
+      final variable = IndexedVariable(
+        DeclarationName('acc'),
+        typeName: DeclarationName('Account'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('acc.Ind{cursor}'),
+        index: [sobject, variable],
+      );
+
+      expect(completionList.items, hasLength(1));
+      expect(completionList, containsCompletion('Industry__c'));
+    });
+
+    test('SObject field completions have field kind', () async {
+      final sobject = IndexedSObject(
+        DeclarationName('Account'),
+        fields: [
+          FieldMember(
+            DeclarationName('Industry__c'),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+          ),
+        ],
+        visibility: AlwaysVisible(),
+      );
+      final variable = IndexedVariable(
+        DeclarationName('acc'),
+        typeName: DeclarationName('Account'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('acc.{cursor}'),
+        index: [sobject, variable],
+      );
+
+      expect(
+        completionList,
+        completionWithKind('Industry__c', CompletionItemKind.field),
+      );
+    });
+  });
+
   group('keywords', () {
     test('suggests keywords at the top level of an empty file', () async {
       final completionList = await complete(
