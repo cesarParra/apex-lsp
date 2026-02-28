@@ -106,90 +106,51 @@ final class CompletionContextMember extends CompletionContext {
   }
 }
 
-final class ContextDetector {
-  const ContextDetector();
+/// Determines the completion context at the cursor position in [text].
+///
+/// Uses the [index] to resolve variable types and type names when detecting
+/// member-access contexts (e.g. `account.`).
+Future<CompletionContext> detectCompletionContext({
+  required String text,
+  required int cursorOffset,
+  required List<Declaration> index,
+}) async {
+  final prefix = text.extractIndentifierPrefixAt(cursorOffset);
 
-  Future<CompletionContext> detect({
-    required String text,
-    required int cursorOffset,
-    required List<Declaration> index,
-  }) async {
-    final prefix = text.extractIndentifierPrefixAt(cursorOffset);
+  var dotIndex = _findMemberDotIndex(text, cursorOffset);
 
-    // Check if cursor is immediately after a dot for member access
-    var dotIndex = _findMemberDotIndex(text, cursorOffset);
-
-    // If typing a member name (e.g., "foo.ba"), the cursor is past the dot.
-    // Look before the prefix to find the dot operator.
-    if (dotIndex == null && prefix.isNotEmpty) {
-      final probeIndex = cursorOffset - prefix.length - 1;
-      if (probeIndex >= 0) {
-        final ch = text.codeUnitAt(probeIndex);
-        if (ch == 0x2E /* . */ ) {
-          dotIndex = probeIndex;
-        } else if (ch == 0x3F /* ? */ ) {
-          final next = probeIndex + 1;
-          if (next < text.length && text.codeUnitAt(next) == 0x2E /* . */ ) {
-            dotIndex = next;
-          }
+  // When typing a member name (e.g. "foo.ba"), the cursor is past the dot.
+  // Look before the prefix to find the dot operator.
+  if (dotIndex == null && prefix.isNotEmpty) {
+    final probeIndex = cursorOffset - prefix.length - 1;
+    if (probeIndex >= 0) {
+      final ch = text.codeUnitAt(probeIndex);
+      if (ch == 0x2E /* . */ ) {
+        dotIndex = probeIndex;
+      } else if (ch == 0x3F /* ? */ ) {
+        final next = probeIndex + 1;
+        if (next < text.length && text.codeUnitAt(next) == 0x2E /* . */ ) {
+          dotIndex = next;
         }
       }
     }
+  }
 
-    if (dotIndex != null) {
-      var objectIndex = dotIndex - 1;
-      if (objectIndex >= 0 && text.codeUnitAt(objectIndex) == 0x3F /* ? */ ) {
-        objectIndex--;
-      }
-      final objectName = _extractIdentifierBefore(text, objectIndex);
-      if (objectName == null) {
-        return CompletionContextNone();
-      }
+  if (dotIndex != null) {
+    var objectIndex = dotIndex - 1;
+    if (objectIndex >= 0 && text.codeUnitAt(objectIndex) == 0x3F /* ? */ ) {
+      objectIndex--;
+    }
+    final objectName = _extractIdentifierBefore(text, objectIndex);
+    if (objectName == null) {
+      return CompletionContextNone();
+    }
 
-      if (DeclarationName(objectName) == const DeclarationName('this')) {
-        final enclosingClass = index.enclosingAt<IndexedClass>(cursorOffset);
-
-        return CompletionContextMember(
-          typeName: enclosingClass?.name.value,
-          objectName: objectName,
-          prefix: prefix,
-          text: text,
-          cursorOffset: cursorOffset,
-        );
-      }
-
-      // Try to find if the extracted object name is in the index.
-      // In case of `Foo.b`, it might find a top-level declaration.
-      // In case of `foo.b` it might find an indexed variable.
-      // In case of `Foo.Bar.b`, resolve the qualified path through class members.
-      final declaration =
-          index.findDeclaration(DeclarationName(objectName)) ??
-          index.resolveQualifiedName(objectName);
+    if (DeclarationName(objectName) == const DeclarationName('this')) {
+      final enclosingClass = index.enclosingAt<IndexedClass>(cursorOffset);
 
       return CompletionContextMember(
-        typeName: switch (declaration) {
-          null => null,
-          ConstructorDeclaration() => throw UnsupportedError(
-            'Autocompleting constructors is not supported at the moment',
-          ),
-
-          FieldMember(:final typeName) ||
-          PropertyDeclaration(:final typeName) => typeName?.value,
-
-          MethodDeclaration() ||
-          EnumValueMember() => throw UnimplementedError(),
-
-          // When autocompleting members of a declared variable,
-          // we return the name of its declared type. (e.g. String foo would return "String")
-          IndexedVariable(:final typeName) => typeName.value,
-
-          // When autocompleting a top level object (e.g. Foo.), we return
-          // the name of the type itself.
-          IndexedClass() ||
-          IndexedInterface() ||
-          IndexedEnum() ||
-          IndexedSObject() => declaration.name.value,
-        },
+        typeName: enclosingClass?.name.value,
         objectName: objectName,
         prefix: prefix,
         text: text,
@@ -197,71 +158,80 @@ final class ContextDetector {
       );
     }
 
-    return CompletionContextTopLevel(
+    final declaration =
+        index.findDeclaration(DeclarationName(objectName)) ??
+        index.resolveQualifiedName(objectName);
+
+    return CompletionContextMember(
+      typeName: switch (declaration) {
+        null => null,
+        ConstructorDeclaration() => throw UnsupportedError(
+          'Autocompleting constructors is not supported at the moment',
+        ),
+
+        FieldMember(:final typeName) ||
+        PropertyDeclaration(:final typeName) => typeName?.value,
+
+        MethodDeclaration() || EnumValueMember() => throw UnimplementedError(),
+
+        // Return the declared type name so member completions resolve correctly.
+        IndexedVariable(:final typeName) => typeName.value,
+
+        // Return the type's own name so static member completions resolve correctly.
+        IndexedClass() ||
+        IndexedInterface() ||
+        IndexedEnum() ||
+        IndexedSObject() => declaration.name.value,
+      },
+      objectName: objectName,
       prefix: prefix,
       text: text,
       cursorOffset: cursorOffset,
     );
   }
 
-  /// Finds the position of a dot operator before the cursor.
-  ///
-  /// Searches backward from the cursor position to locate a `.` or `?.`
-  /// operator, skipping any whitespace between the dot and cursor.
-  ///
-  /// Returns the index of the dot, or `null` if no dot operator is found.
-  int? _findMemberDotIndex(String text, int cursorOffset) {
-    var i = cursorOffset - 1;
-    if (i < 0) return null;
+  return CompletionContextTopLevel(
+    prefix: prefix,
+    text: text,
+    cursorOffset: cursorOffset,
+  );
+}
 
-    // Skip any whitespace between the dot and cursor position
-    while (i >= 0 && _isWhitespace(text.codeUnitAt(i))) {
-      i--;
-    }
-    if (i < 0) return null;
+int? _findMemberDotIndex(String text, int cursorOffset) {
+  var i = cursorOffset - 1;
+  if (i < 0) return null;
 
-    final ch = text.codeUnitAt(i);
+  while (i >= 0 && _isWhitespace(text.codeUnitAt(i))) {
+    i--;
+  }
+  if (i < 0) return null;
 
-    if (ch == 0x2E /* . */ ) {
-      return i;
-    }
+  final ch = text.codeUnitAt(i);
 
-    if (ch == 0x3F /* ? */ ) {
-      final next = i + 1;
-      if (next < text.length && text.codeUnitAt(next) == 0x2E /* . */ ) {
-        return next;
-      }
+  if (ch == 0x2E /* . */ ) return i;
 
-      final prev = i - 1;
-      if (prev >= 0 && text.codeUnitAt(prev) == 0x2E /* . */ ) {
-        return prev;
-      }
+  if (ch == 0x3F /* ? */ ) {
+    final next = i + 1;
+    if (next < text.length && text.codeUnitAt(next) == 0x2E /* . */ ) {
+      return next;
     }
 
-    return null;
+    final prev = i - 1;
+    if (prev >= 0 && text.codeUnitAt(prev) == 0x2E /* . */ ) return prev;
   }
 
-  /// Checks if a character code unit represents whitespace.
-  ///
-  /// Recognizes space, tab, newline, and carriage return.
-  bool _isWhitespace(int ch) {
-    return ch == 32 || ch == 9 || ch == 10 || ch == 13;
-  }
+  return null;
+}
 
-  /// Extracts the identifier immediately before the specified index.
-  ///
-  /// Skips whitespace and extracts the qualified identifier (e.g., "Account"
-  /// or "System.String") that appears before the given position.
-  ///
-  /// Returns the identifier text, or `null` if no valid identifier is found.
-  String? _extractIdentifierBefore(String text, int index) {
-    var i = index;
-    while (i >= 0 && _isWhitespace(text.codeUnitAt(i))) {
-      i--;
-    }
-    if (i < 0) return null;
+bool _isWhitespace(int ch) => ch == 32 || ch == 9 || ch == 10 || ch == 13;
 
-    final identifier = text.extractQualifiedIdentifierAt(i + 1);
-    return identifier.isNotEmpty ? identifier : null;
+String? _extractIdentifierBefore(String text, int index) {
+  var i = index;
+  while (i >= 0 && _isWhitespace(text.codeUnitAt(i))) {
+    i--;
   }
+  if (i < 0) return null;
+
+  final identifier = text.extractQualifiedIdentifierAt(i + 1);
+  return identifier.isNotEmpty ? identifier : null;
 }

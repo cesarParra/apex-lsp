@@ -330,8 +330,7 @@ Future<CompletionList> onCompletion({
     'indexedTypes=$indexedTypeCount',
   );
 
-  final contextDetector = ContextDetector();
-  final context = await contextDetector.detect(
+  final context = await detectCompletionContext(
     text: text,
     cursorOffset: cursorOffset,
     index: index,

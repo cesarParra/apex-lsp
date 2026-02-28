@@ -59,37 +59,11 @@ final class IndexRepository {
   Future<Map<String, IndexedType>> _loadApexForWorkspace(
     Uri workspaceRoot,
   ) async {
-    if (_apexCache.containsKey(workspaceRoot)) {
-      return _apexCache[workspaceRoot]!;
-    }
-
-    final rootPath = workspaceRoot.toFilePath(windows: _platform.isWindows);
-    final indexDir = _fileSystem.directory(
-      _fileSystem.path.join(rootPath, indexRootFolderName, apexIndexFolderName),
-    );
-    if (!indexDir.existsSync()) {
-      _log?.call('Index directory does not exist: ${indexDir.path}');
-      return _apexCache[workspaceRoot] = {};
-    }
-
-    final allFiles = indexDir.listSync(recursive: false, followLinks: false);
-    final jsonFiles = allFiles
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.json'))
-        .toList();
-
-    _log?.call('Found ${jsonFiles.length} JSON files in ${indexDir.path}');
-
-    final indexedTypesByName = <String, IndexedType>{};
-    for (final file in jsonFiles) {
-      try {
-        if (!await file.exists()) {
-          _log?.call('File does not exist: ${file.path}');
-          continue;
-        }
-
-        final content = await file.readAsString();
-        final decoded = jsonDecode(content);
+    return _loadFromCache(
+      cache: _apexCache,
+      workspaceRoot: workspaceRoot,
+      subFolder: apexIndexFolderName,
+      parse: (decoded) {
         final indexedType = _parseApex(decoded);
         if (indexedType == null) {
           final typeMirror = decoded is Map ? decoded['typeMirror'] : null;
@@ -97,74 +71,94 @@ final class IndexRepository {
               ? typeMirror['type_name']
               : 'unknown';
           _log?.call(
-            'SKIPPED ${file.path}: '
-            '_parseApex returned null '
-            '(type_name=$typeNameValue)',
+            'SKIPPED: _parseApex returned null (type_name=$typeNameValue)',
           );
-          continue;
+          return null;
         }
-        final key = indexedType.name.value.toLowerCase();
-        if (indexedTypesByName.containsKey(key)) {
-          _log?.call(
-            'DUPLICATE key "$key": '
-            '${file.path} overwrites previous entry',
-          );
-        }
-        indexedTypesByName[key] = indexedType;
-      } catch (error) {
-        _log?.call('ERROR reading ${file.path}: $error');
-      }
-    }
-
-    _log?.call(
-      'Loaded ${indexedTypesByName.length} types from ${jsonFiles.length} files',
+        return indexedType;
+      },
+      onDirectoryMissing: () {
+        _log?.call('Index directory does not exist');
+      },
+      onFileLoaded: (count, total) {
+        _log?.call('Found $total JSON files, loaded $count types');
+      },
+      onDuplicate: (key) {
+        _log?.call('DUPLICATE key "$key" overwritten');
+      },
+      onError: (path, error) {
+        _log?.call('ERROR reading $path: $error');
+      },
     );
-
-    _apexCache[workspaceRoot] = indexedTypesByName;
-    return indexedTypesByName;
   }
 
   Future<Map<String, IndexedSObject>> _loadSObjectsForWorkspace(
     Uri workspaceRoot,
   ) async {
-    if (_sobjectCache.containsKey(workspaceRoot)) {
-      return _sobjectCache[workspaceRoot]!;
-    }
+    return _loadFromCache(
+      cache: _sobjectCache,
+      workspaceRoot: workspaceRoot,
+      subFolder: sobjectIndexFolderName,
+      parse: (decoded) {
+        if (decoded is! Map<String, dynamic>) return null;
+        return _parseSObject(decoded);
+      },
+      onError: (path, error) {
+        _log?.call('ERROR reading $path: $error');
+      },
+    );
+  }
+
+  /// Loads and caches typed index entries from a subfolder of the index root.
+  ///
+  /// Shared between Apex and SObject loading — both follow the same pattern of
+  /// listing JSON files in a known directory, parsing each, and caching by
+  /// lower-cased name.
+  Future<Map<String, T>> _loadFromCache<T extends IndexedType>({
+    required Map<Uri, Map<String, T>> cache,
+    required Uri workspaceRoot,
+    required String subFolder,
+    required T? Function(Object? decoded) parse,
+    void Function()? onDirectoryMissing,
+    void Function(int loaded, int total)? onFileLoaded,
+    void Function(String key)? onDuplicate,
+    void Function(String path, Object error)? onError,
+  }) async {
+    if (cache.containsKey(workspaceRoot)) return cache[workspaceRoot]!;
 
     final rootPath = workspaceRoot.toFilePath(windows: _platform.isWindows);
     final indexDir = _fileSystem.directory(
-      _fileSystem.path.join(
-        rootPath,
-        indexRootFolderName,
-        sobjectIndexFolderName,
-      ),
+      _fileSystem.path.join(rootPath, indexRootFolderName, subFolder),
     );
+
     if (!indexDir.existsSync()) {
-      return _sobjectCache[workspaceRoot] = {};
+      onDirectoryMissing?.call();
+      return cache[workspaceRoot] = {};
     }
 
-    final allFiles = indexDir.listSync(recursive: false, followLinks: false);
-    final jsonFiles = allFiles
+    final jsonFiles = indexDir
+        .listSync(recursive: false, followLinks: false)
         .whereType<File>()
         .where((f) => f.path.toLowerCase().endsWith('.json'))
         .toList();
 
-    final sobjectsByName = <String, IndexedSObject>{};
+    final byName = <String, T>{};
     for (final file in jsonFiles) {
       try {
         if (!await file.exists()) continue;
-        final content = await file.readAsString();
-        final decoded = jsonDecode(content) as Map<String, dynamic>;
-        final sobject = _parseSObject(decoded);
-        if (sobject == null) continue;
-        sobjectsByName[sobject.name.value.toLowerCase()] = sobject;
+        final decoded = jsonDecode(await file.readAsString());
+        final entry = parse(decoded);
+        if (entry == null) continue;
+        final key = entry.name.value.toLowerCase();
+        if (byName.containsKey(key)) onDuplicate?.call(key);
+        byName[key] = entry;
       } catch (error) {
-        _log?.call('ERROR reading ${file.path}: $error');
+        onError?.call(file.path, error);
       }
     }
 
-    _sobjectCache[workspaceRoot] = sobjectsByName;
-    return sobjectsByName;
+    onFileLoaded?.call(byName.length, jsonFiles.length);
+    return cache[workspaceRoot] = byName;
   }
 
   IndexedSObject? _parseSObject(Map<String, dynamic> decoded) {

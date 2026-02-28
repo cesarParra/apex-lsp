@@ -99,7 +99,7 @@ Future<bool> _isStale({
     followLinks: false,
   )) {
     if (entity is! File) continue;
-    if (await entity.lastModified().then((m) => m.isAfter(jsonModified))) {
+    if ((await entity.lastModified()).isAfter(jsonModified)) {
       return true;
     }
   }
