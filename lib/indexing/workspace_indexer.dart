@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:isolate';
 
 import 'package:apex_lsp/indexing/declarations.dart';
+import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
@@ -30,8 +31,6 @@ final class WorkspaceIndexer {
   }) : _sfdxWorkspaceLocator = sfdxWorkspaceLocator,
        _fileSystem = fileSystem,
        _platform = platform;
-
-  static const String indexFolderName = '.sf-zed';
 
   final SfdxWorkspaceLocator _sfdxWorkspaceLocator;
   final FileSystem _fileSystem;
@@ -137,7 +136,8 @@ final class WorkspaceIndexer {
 
     final indexDirPath = _fileSystem.path.join(
       workspaceRootDir.path,
-      indexFolderName,
+      indexRootFolderName,
+      apexIndexFolderName,
     );
     final indexDir = _fileSystem.directory(indexDirPath);
 
@@ -305,8 +305,6 @@ final class IndexRepository {
        _workspaceRootUris = workspaceRootUris,
        _log = log;
 
-  static const String indexFolderName = '.sf-zed';
-
   final FileSystem _fileSystem;
   final LspPlatform _platform;
   final List<Uri> _workspaceRootUris;
@@ -345,7 +343,7 @@ final class IndexRepository {
 
     final rootPath = workspaceRoot.toFilePath(windows: _platform.isWindows);
     final indexDir = _fileSystem.directory(
-      _fileSystem.path.join(rootPath, indexFolderName),
+      _fileSystem.path.join(rootPath, indexRootFolderName, apexIndexFolderName),
     );
     if (!indexDir.existsSync()) {
       _log?.call('Index directory does not exist: ${indexDir.path}');
