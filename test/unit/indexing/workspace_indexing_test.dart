@@ -21,6 +21,161 @@ final class FakeLspPlatform implements LspPlatform {
 }
 
 void main() {
+  group('incremental indexing', () {
+    late FileSystem fs;
+    late FakeLspPlatform platform;
+    late WorkspaceIndexer indexer;
+    late Directory workspaceRoot;
+    late Uri workspaceUri;
+    late Directory classesDir;
+
+    setUp(() {
+      fs = MemoryFileSystem();
+      platform = FakeLspPlatform();
+      indexer = WorkspaceIndexer(
+        sfdxWorkspaceLocator: SfdxWorkspaceLocator(
+          fileSystem: fs,
+          platform: platform,
+        ),
+        fileSystem: fs,
+        platform: platform,
+      );
+
+      workspaceRoot = fs.directory('/repo')..createSync();
+      workspaceUri = Uri.directory(workspaceRoot.path);
+
+      workspaceRoot
+          .childFile('sfdx-project.json')
+          .writeAsStringSync(
+            jsonEncode({
+              'packageDirectories': [
+                {'path': 'force-app', 'default': true},
+              ],
+            }),
+          );
+
+      classesDir = fs.directory('/repo/force-app/main/default/classes')
+        ..createSync(recursive: true);
+    });
+
+    Future<void> runIndex() => indexer
+        .index(
+          InitializedParams([WorkspaceFolder(workspaceUri.toString(), 'repo')]),
+          token: ProgressToken.string('test-token'),
+        )
+        .drain<void>();
+
+    test('does not delete the index directory on re-index', () async {
+      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
+
+      await runIndex();
+
+      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      expect(indexDir.existsSync(), isTrue);
+
+      // Write a sentinel file to confirm the directory is not wiped.
+      indexDir.childFile('_sentinel.txt').writeAsStringSync('keep me');
+
+      await runIndex();
+
+      expect(indexDir.childFile('_sentinel.txt').existsSync(), isTrue);
+    });
+
+    test('skips re-indexing a file whose .json is up to date', () async {
+      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
+
+      await runIndex();
+
+      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final jsonFile = indexDir.childFile('Foo.json');
+      final firstModified = jsonFile.lastModifiedSync();
+
+      // Run again — Foo.cls has not changed, so Foo.json should be untouched.
+      await runIndex();
+
+      expect(jsonFile.lastModifiedSync(), equals(firstModified));
+    });
+
+    test('re-indexes a file whose .cls is newer than its .json', () async {
+      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
+
+      await runIndex();
+
+      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final jsonFile = indexDir.childFile('Foo.json');
+      final firstModified = jsonFile.lastModifiedSync();
+
+      // Touch the .cls to make it newer than the .json.
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      classesDir
+          .childFile('Foo.cls')
+          .writeAsStringSync('public class Foo { public void newMethod() {} }');
+
+      await runIndex();
+
+      expect(jsonFile.lastModifiedSync().isAfter(firstModified), isTrue);
+    });
+
+    test('removes orphaned .json files with no matching .cls', () async {
+      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
+      classesDir.childFile('Bar.cls').writeAsStringSync('public class Bar {}');
+
+      await runIndex();
+
+      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      expect(indexDir.childFile('Foo.json').existsSync(), isTrue);
+      expect(indexDir.childFile('Bar.json').existsSync(), isTrue);
+
+      // Delete Bar.cls to simulate a file removal.
+      classesDir.childFile('Bar.cls').deleteSync();
+
+      await runIndex();
+
+      expect(indexDir.childFile('Foo.json').existsSync(), isTrue);
+      expect(indexDir.childFile('Bar.json').existsSync(), isFalse);
+    });
+
+    test(
+      'only re-indexes stale files, leaving fresh .json files untouched',
+      () async {
+        classesDir
+            .childFile('Foo.cls')
+            .writeAsStringSync('public class Foo {}');
+        classesDir
+            .childFile('Bar.cls')
+            .writeAsStringSync('public class Bar {}');
+
+        await runIndex();
+
+        final indexDir = workspaceRoot.childDirectory('.sf-zed');
+        final fooModified = indexDir.childFile('Foo.json').lastModifiedSync();
+        final barModified = indexDir.childFile('Bar.json').lastModifiedSync();
+
+        // Touch only Bar.cls.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        classesDir
+            .childFile('Bar.cls')
+            .writeAsStringSync('public class Bar { public String name; }');
+
+        await runIndex();
+
+        expect(
+          indexDir.childFile('Foo.json').lastModifiedSync(),
+          equals(fooModified),
+          reason: 'Foo.json should not be re-indexed',
+        );
+        expect(
+          indexDir
+              .childFile('Bar.json')
+              .lastModifiedSync()
+              .isAfter(barModified),
+          isTrue,
+          reason: 'Bar.json should have been re-indexed',
+        );
+      },
+    );
+  });
+
   group('Indexer', () {
     late FileSystem fs;
     late FakeLspPlatform platform;

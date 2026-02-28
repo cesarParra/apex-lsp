@@ -26,3 +26,4 @@ doc/api/
 
 *.g.dart
 libtree_sitter_sfapex.*
+.idea
