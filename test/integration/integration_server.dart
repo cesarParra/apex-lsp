@@ -5,7 +5,7 @@ import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
 import 'package:apex_lsp/documents/open_documents.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
-import 'package:apex_lsp/indexing/workspace_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/lsp_out.dart';
 import 'package:apex_lsp/message_reader.dart';
 import 'package:apex_lsp/server.dart';

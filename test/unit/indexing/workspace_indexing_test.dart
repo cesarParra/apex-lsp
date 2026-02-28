@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
-import 'package:apex_lsp/indexing/workspace_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:apex_lsp/utils/platform.dart';

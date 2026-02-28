@@ -11,7 +11,7 @@ import 'package:apex_lsp/gitignore.dart';
 import 'package:apex_lsp/handlers/requests/on_hover.dart';
 import 'package:apex_lsp/handlers/requests/on_initialize.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
-import 'package:apex_lsp/indexing/workspace_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';

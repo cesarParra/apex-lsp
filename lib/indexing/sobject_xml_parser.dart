@@ -19,7 +19,7 @@ SObjectMetadata parseObjectMetaXml(String apiName, String xmlContent) {
 
 /// Parses a single field from the XML string of a *.field-meta.xml file.
 ///
-/// Returns null if the XML is malformed or if the required <fullName> element
+/// Returns null if the XML is malformed or if the required `fullName` element
 /// is missing.
 SObjectFieldMetadata? parseFieldMetaXml(String xmlContent) {
   if (xmlContent.isEmpty) return null;

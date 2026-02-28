@@ -4,3 +4,4 @@
 /// so that renaming the layout requires a single change here.
 const String indexRootFolderName = '.sf-zed';
 const String apexIndexFolderName = 'apex';
+const String sobjectIndexFolderName = 'sobjects';
