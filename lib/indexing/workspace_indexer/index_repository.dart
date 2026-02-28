@@ -29,31 +29,39 @@ final class IndexRepository {
   // Populated on first access and retained for the lifetime of this instance.
   // A new IndexRepository is created after each re-index, so no explicit
   // invalidation is needed.
-  final Map<Uri, Map<String, IndexedType>> _cache = {};
+  final Map<Uri, Map<String, IndexedType>> _apexCache = {};
+  final Map<Uri, Map<String, IndexedSObject>> _sobjectCache = {};
 
   Future<List<IndexedType>> getDeclarations() async {
     final declarations = <IndexedType>[];
     for (final root in _workspaceRootUris) {
-      final indexedTypes = await _loadForWorkspace(root);
-      declarations.addAll(indexedTypes.values);
+      declarations.addAll((await _loadApexForWorkspace(root)).values);
+      declarations.addAll((await _loadSObjectsForWorkspace(root)).values);
     }
     return declarations;
   }
 
   Future<IndexedType?> getIndexedType(String typeName) async {
     if (typeName.isEmpty) return null;
+    final key = typeName.toLowerCase();
 
     for (final root in _workspaceRootUris) {
-      final indexedTypes = await _loadForWorkspace(root);
-      final result = indexedTypes[typeName.toLowerCase()];
-      if (result != null) return result;
+      final apex = await _loadApexForWorkspace(root);
+      if (apex.containsKey(key)) return apex[key];
+
+      final sobjects = await _loadSObjectsForWorkspace(root);
+      if (sobjects.containsKey(key)) return sobjects[key];
     }
 
     return null;
   }
 
-  Future<Map<String, IndexedType>> _loadForWorkspace(Uri workspaceRoot) async {
-    if (_cache.containsKey(workspaceRoot)) return _cache[workspaceRoot]!;
+  Future<Map<String, IndexedType>> _loadApexForWorkspace(
+    Uri workspaceRoot,
+  ) async {
+    if (_apexCache.containsKey(workspaceRoot)) {
+      return _apexCache[workspaceRoot]!;
+    }
 
     final rootPath = workspaceRoot.toFilePath(windows: _platform.isWindows);
     final indexDir = _fileSystem.directory(
@@ -61,7 +69,7 @@ final class IndexRepository {
     );
     if (!indexDir.existsSync()) {
       _log?.call('Index directory does not exist: ${indexDir.path}');
-      return _cache[workspaceRoot] = {};
+      return _apexCache[workspaceRoot] = {};
     }
 
     final allFiles = indexDir.listSync(recursive: false, followLinks: false);
@@ -82,7 +90,7 @@ final class IndexRepository {
 
         final content = await file.readAsString();
         final decoded = jsonDecode(content);
-        final indexedType = _parse(decoded);
+        final indexedType = _parseApex(decoded);
         if (indexedType == null) {
           final typeMirror = decoded is Map ? decoded['typeMirror'] : null;
           final typeNameValue = typeMirror is Map
@@ -90,7 +98,7 @@ final class IndexRepository {
               : 'unknown';
           _log?.call(
             'SKIPPED ${file.path}: '
-            '_parse returned null '
+            '_parseApex returned null '
             '(type_name=$typeNameValue)',
           );
           continue;
@@ -112,11 +120,87 @@ final class IndexRepository {
       'Loaded ${indexedTypesByName.length} types from ${jsonFiles.length} files',
     );
 
-    _cache[workspaceRoot] = indexedTypesByName;
+    _apexCache[workspaceRoot] = indexedTypesByName;
     return indexedTypesByName;
   }
 
-  IndexedType? _parse(Object? decoded) {
+  Future<Map<String, IndexedSObject>> _loadSObjectsForWorkspace(
+    Uri workspaceRoot,
+  ) async {
+    if (_sobjectCache.containsKey(workspaceRoot)) {
+      return _sobjectCache[workspaceRoot]!;
+    }
+
+    final rootPath = workspaceRoot.toFilePath(windows: _platform.isWindows);
+    final indexDir = _fileSystem.directory(
+      _fileSystem.path.join(
+        rootPath,
+        indexRootFolderName,
+        sobjectIndexFolderName,
+      ),
+    );
+    if (!indexDir.existsSync()) {
+      return _sobjectCache[workspaceRoot] = {};
+    }
+
+    final allFiles = indexDir.listSync(recursive: false, followLinks: false);
+    final jsonFiles = allFiles
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.json'))
+        .toList();
+
+    final sobjectsByName = <String, IndexedSObject>{};
+    for (final file in jsonFiles) {
+      try {
+        if (!await file.exists()) continue;
+        final content = await file.readAsString();
+        final decoded = jsonDecode(content) as Map<String, dynamic>;
+        final sobject = _parseSObject(decoded);
+        if (sobject == null) continue;
+        sobjectsByName[sobject.name.value.toLowerCase()] = sobject;
+      } catch (error) {
+        _log?.call('ERROR reading ${file.path}: $error');
+      }
+    }
+
+    _sobjectCache[workspaceRoot] = sobjectsByName;
+    return sobjectsByName;
+  }
+
+  IndexedSObject? _parseSObject(Map<String, dynamic> decoded) {
+    final objectApiName = decoded['objectApiName'] as String?;
+    if (objectApiName == null) return null;
+
+    final metadata = decoded['objectMetadata'];
+    if (metadata is! Map<String, dynamic>) return null;
+
+    final rawFields = metadata['fields'];
+    final fields = <FieldMember>[];
+    if (rawFields is List) {
+      for (final rawField in rawFields) {
+        if (rawField is! Map<String, dynamic>) continue;
+        final apiName = rawField['apiName'] as String?;
+        if (apiName == null) continue;
+        final type = rawField['type'] as String?;
+        fields.add(
+          FieldMember(
+            DeclarationName(apiName),
+            isStatic: false,
+            visibility: AlwaysVisible(),
+            typeName: type != null ? DeclarationName(type) : null,
+          ),
+        );
+      }
+    }
+
+    return IndexedSObject(
+      DeclarationName(objectApiName),
+      fields: fields,
+      visibility: AlwaysVisible(),
+    );
+  }
+
+  IndexedType? _parseApex(Object? decoded) {
     if (decoded is! Map) return null;
     final typeMirror = decoded['typeMirror'];
     if (typeMirror is! Map) return null;

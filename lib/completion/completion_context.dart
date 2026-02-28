@@ -187,7 +187,8 @@ final class ContextDetector {
           // the name of the type itself.
           IndexedClass() ||
           IndexedInterface() ||
-          IndexedEnum() => declaration.name.value,
+          IndexedEnum() ||
+          IndexedSObject() => declaration.name.value,
         },
         objectName: objectName,
         prefix: prefix,

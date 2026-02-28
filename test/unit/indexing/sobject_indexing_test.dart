@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/message.dart';
+import 'package:apex_lsp/type_name.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
@@ -109,6 +111,11 @@ void main() {
             .writeAsStringSync(entry.value);
       }
     }
+  }
+
+  Future<IndexRepository> indexAndCreateRepository() async {
+    await runIndex();
+    return indexer.getIndexLoader();
   }
 
   group('SObject indexer', () {
@@ -277,6 +284,102 @@ void main() {
           .childDirectory(apexIndexFolderName);
       expect(apexIndexDir.childFile('Foo.json').existsSync(), isTrue);
       expect(sobjectIndexDir().childFile('Account.json').existsSync(), isTrue);
+    });
+  });
+
+  group('IndexRepository SObject loading', () {
+    test(
+      'getDeclarations returns IndexedSObject for indexed SObjects',
+      () async {
+        createObjectDir('Account');
+        final repository = await indexAndCreateRepository();
+
+        final declarations = await repository.getDeclarations();
+
+        expect(declarations.whereType<IndexedSObject>(), hasLength(1));
+      },
+    );
+
+    test('getIndexedType returns IndexedSObject by API name', () async {
+      createObjectDir('Account');
+      final repository = await indexAndCreateRepository();
+
+      final result = await repository.getIndexedType('Account');
+
+      expect(result, isA<IndexedSObject>());
+      expect(result!.name, equals(DeclarationName('Account')));
+    });
+
+    test('getIndexedType is case-insensitive', () async {
+      createObjectDir('Account');
+      final repository = await indexAndCreateRepository();
+
+      final result = await repository.getIndexedType('account');
+
+      expect(result, isA<IndexedSObject>());
+    });
+
+    test(
+      'IndexedSObject fields contains correct FieldMember entries',
+      () async {
+        createObjectDir('Account', fields: {'Industry__c': _industryFieldXml});
+        final repository = await indexAndCreateRepository();
+
+        final sobject =
+            await repository.getIndexedType('Account') as IndexedSObject;
+
+        expect(sobject.fields, hasLength(1));
+        expect(
+          sobject.fields.first.name,
+          equals(DeclarationName('Industry__c')),
+        );
+      },
+    );
+
+    test('FieldMember is not static and is always visible', () async {
+      createObjectDir('Account', fields: {'Industry__c': _industryFieldXml});
+      final repository = await indexAndCreateRepository();
+
+      final sobject =
+          await repository.getIndexedType('Account') as IndexedSObject;
+      final field = sobject.fields.first;
+
+      expect(field.isStatic, isFalse);
+      expect(field.visibility, isA<AlwaysVisible>());
+    });
+
+    test('FieldMember typeName is set from the field type string', () async {
+      createObjectDir('Account', fields: {'Industry__c': _industryFieldXml});
+      final repository = await indexAndCreateRepository();
+
+      final sobject =
+          await repository.getIndexedType('Account') as IndexedSObject;
+      final field = sobject.fields.first;
+
+      expect(field.typeName, equals(DeclarationName('Picklist')));
+    });
+
+    test('SObject with no fields loads with an empty fields list', () async {
+      createObjectDir('Account');
+      final repository = await indexAndCreateRepository();
+
+      final sobject =
+          await repository.getIndexedType('Account') as IndexedSObject;
+
+      expect(sobject.fields, isEmpty);
+    });
+
+    test('getDeclarations returns both Apex types and SObjects', () async {
+      final classesDir = fs.directory('/repo/force-app/main/default/classes')
+        ..createSync(recursive: true);
+      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
+      createObjectDir('Account');
+      final repository = await indexAndCreateRepository();
+
+      final declarations = await repository.getDeclarations();
+
+      expect(declarations.whereType<IndexedClass>(), hasLength(1));
+      expect(declarations.whereType<IndexedSObject>(), hasLength(1));
     });
   });
 }
