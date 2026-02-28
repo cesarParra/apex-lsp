@@ -120,6 +120,23 @@ final class FieldMember extends Declaration {
   });
 }
 
+final class PropertyDeclaration extends Declaration {
+  final DeclarationName? typeName;
+  final bool isStatic;
+  final Block? getterBody;
+  final Block? setterBody;
+
+  PropertyDeclaration(
+    super.name, {
+    required this.isStatic,
+    required super.visibility,
+    this.typeName,
+    this.getterBody,
+    this.setterBody,
+    super.location,
+  });
+}
+
 final class ConstructorDeclaration extends Declaration {
   final Block body;
 

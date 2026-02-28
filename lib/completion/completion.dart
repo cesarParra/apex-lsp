@@ -129,8 +129,13 @@ List<CompletionCandidate> _topLevelCandidates(
         (declaration) => switch (declaration) {
           IndexedType() => ApexTypeCandidate(declaration),
           IndexedVariable() => LocalVariableCandidate(declaration),
-          FieldMember() || MethodDeclaration() || EnumValueMember() =>
-            MemberCandidate(declaration, parentType: enclosingType),
+          FieldMember() ||
+          PropertyDeclaration() ||
+          MethodDeclaration() ||
+          EnumValueMember() => MemberCandidate(
+            declaration,
+            parentType: enclosingType,
+          ),
           ConstructorDeclaration() => throw UnsupportedError(
             'Autocompleting constructors is not supported at the moment',
           ),
@@ -235,7 +240,10 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
   Declaration declaration, {
   IndexedType? parentType,
 }) => switch (declaration) {
-  FieldMember(:final typeName) => (CompletionItemKind.field, typeName?.value),
+  FieldMember(:final typeName) || PropertyDeclaration(:final typeName) => (
+    CompletionItemKind.field,
+    typeName?.value,
+  ),
   MethodDeclaration() => (CompletionItemKind.method, null),
   EnumValueMember() => (CompletionItemKind.enumMember, parentType?.name.value),
   IndexedClass() => (CompletionItemKind.classKind, 'Class'),
@@ -400,6 +408,7 @@ bool potentiallyMatches(
 
 bool _isStaticDeclaration(Declaration declaration) => switch (declaration) {
   FieldMember(:final isStatic) ||
+  PropertyDeclaration(:final isStatic) ||
   MethodDeclaration(:final isStatic) => isStatic,
   EnumValueMember() || IndexedType() || ConstructorDeclaration() => true,
   IndexedVariable() => false,

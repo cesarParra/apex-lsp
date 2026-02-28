@@ -148,6 +148,11 @@ List<Declaration> getBodyDeclarations(Declaration? declaration) {
     ConstructorDeclaration(:final body) ||
     MethodDeclaration(:final body) => body.declarations,
 
+    PropertyDeclaration(:final getterBody, :final setterBody) => [
+      ...?getterBody?.declarations,
+      ...?setterBody?.declarations,
+    ],
+
     IndexedClass() => [
       ...declaration.members,
       ...declaration.members.expand(getBodyDeclarations),

@@ -637,4 +637,190 @@ public interface Foo {
       expect(interfaceDeclaration.methods, isEmpty);
     });
   });
+
+  group('indexes properties (fields with accessor blocks)', () {
+    test('indexes a property with a get block as PropertyDeclaration', () {
+      final text = '''
+public class Foo {
+  public String Name {
+    get { return Name; }
+  }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first;
+      expect(property, isA<PropertyDeclaration>());
+    });
+
+    test('captures property name', () {
+      final text = '''
+public class Foo {
+  public String MyProp {
+    get { return MyProp; }
+  }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.name.value, 'MyProp');
+    });
+
+    test('captures property type name', () {
+      final text = '''
+public class Foo {
+  public String MyProp {
+    get { return MyProp; }
+  }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.typeName?.value, 'String');
+    });
+
+    test('captures property location', () {
+      final text = 'public class Foo { public String MyProp { get; set; } }';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.location, isNotNull);
+    });
+
+    test('marks non-static property as non-static', () {
+      final text = '''
+public class Foo {
+  public String MyProp { get; set; }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.isStatic, isFalse);
+    });
+
+    test('marks static property as static', () {
+      final text = '''
+public class Foo {
+  public static String MyProp { get; set; }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.isStatic, isTrue);
+    });
+
+    test('getter body contains variables declared inside get block', () {
+      final text = '''
+public class Foo {
+  public String Name {
+    get {
+      String localVar;
+      return localVar;
+    }
+  }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.getterBody, isNotNull);
+      final variables = property.getterBody!.declarations
+          .whereType<IndexedVariable>()
+          .toList();
+      expect(variables, hasLength(1));
+      expect(variables.first.name.value, 'localVar');
+    });
+
+    test('setter body contains variables declared inside set block', () {
+      final text = '''
+public class Foo {
+  public String Name {
+    get;
+    set {
+      String transformed = value;
+    }
+  }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.setterBody, isNotNull);
+      final variables = property.setterBody!.declarations
+          .whereType<IndexedVariable>()
+          .toList();
+      expect(variables, hasLength(1));
+      expect(variables.first.name.value, 'transformed');
+    });
+
+    test('getter body variables are scoped to the getter block', () {
+      final text = '''
+public class Foo {
+  public String Name {
+    get {
+      String localVar;
+      return localVar;
+    }
+  }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      final variable = property.getterBody!.declarations
+          .whereType<IndexedVariable>()
+          .first;
+      expect(variable.visibility, isA<VisibleBetweenDeclarationAndScopeEnd>());
+    });
+
+    test('auto-property with semicolons has null getter and setter bodies', () {
+      final text = '''
+public class Foo {
+  public String Name { get; set; }
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      final property = cls.members.first as PropertyDeclaration;
+      expect(property.getterBody, isNull);
+      expect(property.setterBody, isNull);
+    });
+
+    test('plain field without accessor list remains a FieldMember', () {
+      final text = '''
+public class Foo {
+  public String plainField;
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      expect(cls.members.first, isA<FieldMember>());
+    });
+  });
 }

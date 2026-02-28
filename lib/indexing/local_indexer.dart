@@ -269,16 +269,33 @@ class LocalIndexer {
         final isStatic = _hasStaticModifier(fieldNode, bytes);
 
         if (fieldName.isNotEmpty) {
-          members.add(
-            FieldMember(
-              DeclarationName(fieldName),
-              isStatic: isStatic,
-              visibility: AlwaysVisible(),
-              typeName: fieldTypeName.isNotEmpty
-                  ? DeclarationName(fieldTypeName)
-                  : null,
-            ),
+          final accessorLists = _collectDirectChildrenByType(
+            fieldNode,
+            'accessor_list',
           );
+          if (accessorLists.isNotEmpty) {
+            members.add(
+              _extractProperty(
+                fieldNode,
+                accessorLists.first,
+                bytes,
+                name: fieldName,
+                typeName: fieldTypeName,
+                isStatic: isStatic,
+              ),
+            );
+          } else {
+            members.add(
+              FieldMember(
+                DeclarationName(fieldName),
+                isStatic: isStatic,
+                visibility: AlwaysVisible(),
+                typeName: fieldTypeName.isNotEmpty
+                    ? DeclarationName(fieldTypeName)
+                    : null,
+              ),
+            );
+          }
         }
       }
 
@@ -486,9 +503,62 @@ class LocalIndexer {
     return results;
   }
 
+  /// Extracts a property declaration (field with an accessor list).
+  ///
+  /// Produces a [PropertyDeclaration] with getter and setter bodies populated
+  /// from any `accessor_declaration` nodes that have a `block` body. Auto-
+  /// properties (get; set;) have no block body and produce null getter/setter.
+  PropertyDeclaration _extractProperty(
+    TSNode fieldNode,
+    TSNode accessorListNode,
+    List<int> bytes, {
+    required String name,
+    required String typeName,
+    required bool isStatic,
+  }) {
+    Block? getterBody;
+    Block? setterBody;
+
+    final accessorNodes = _collectDirectChildrenByType(
+      accessorListNode,
+      'accessor_declaration',
+    );
+    for (final accessorNode in accessorNodes) {
+      final bodyNode = _getField(accessorNode, 'body');
+      if (_isNullNode(bodyNode)) continue;
+
+      final scopeEnd = _bindings.ts_node_end_byte(bodyNode);
+      final declarations = _visitChildren(bodyNode, bytes, scopeEnd: scopeEnd);
+      final block = Block(declarations: declarations);
+
+      final accessorKeywordNode = _getField(accessorNode, 'accessor');
+      final accessorKeyword = _nodeText(accessorKeywordNode, bytes);
+      if (accessorKeyword == 'get') {
+        getterBody = block;
+      } else if (accessorKeyword == 'set') {
+        setterBody = block;
+      }
+    }
+
+    return PropertyDeclaration(
+      DeclarationName(name),
+      isStatic: isStatic,
+      visibility: AlwaysVisible(),
+      typeName: typeName.isNotEmpty ? DeclarationName(typeName) : null,
+      getterBody: getterBody,
+      setterBody: setterBody,
+      location: (
+        _bindings.ts_node_start_byte(fieldNode),
+        _bindings.ts_node_end_byte(fieldNode),
+      ),
+    );
+  }
+
   bool _hasStaticModifier(TSNode node, List<int> bytes) {
     final modifiersNodes = _collectDirectChildrenByType(node, 'modifiers');
-    return modifiersNodes.any((node) => _nodeText(node, bytes) == 'static');
+    return modifiersNodes.any(
+      (node) => _nodeText(node, bytes).split(RegExp(r'\s+')).contains('static'),
+    );
   }
 
   /// Retrieves a named field from a Tree-sitter node.
@@ -597,13 +667,15 @@ final class _FieldNames {
       body = 'body'.toNativeUtf8(),
       type = 'type'.toNativeUtf8(),
       parameters = 'parameters'.toNativeUtf8(),
-      declarator = 'declarator'.toNativeUtf8();
+      declarator = 'declarator'.toNativeUtf8(),
+      accessor = 'accessor'.toNativeUtf8();
 
   final Pointer<Utf8> name;
   final Pointer<Utf8> body;
   final Pointer<Utf8> type;
   final Pointer<Utf8> parameters;
   final Pointer<Utf8> declarator;
+  final Pointer<Utf8> accessor;
 
   (Pointer<Utf8>, int) lookup(String fieldName) => switch (fieldName) {
     'name' => (name, 4),
@@ -611,6 +683,7 @@ final class _FieldNames {
     'type' => (type, 4),
     'parameters' => (parameters, 10),
     'declarator' => (declarator, 10),
+    'accessor' => (accessor, 8),
     _ => throw ArgumentError('Unknown Tree-sitter field name: "$fieldName"'),
   };
 }
