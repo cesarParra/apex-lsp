@@ -699,6 +699,34 @@ class TextDocumentDidCloseMessage
   const TextDocumentDidCloseMessage(this.params);
 }
 
+/// LSP `textDocument/didSave` notification.
+///
+/// Sent when a text document is saved in the client. The server uses this
+/// to trigger re-indexing of the saved file so workspace completions stay
+/// current without requiring a server restart.
+class TextDocumentDidSaveMessage
+    extends IncomingNotificationMessageWithParams<DidSaveTextDocumentParams> {
+  @override
+  String get method => 'textDocument/didSave';
+
+  @override
+  final DidSaveTextDocumentParams params;
+
+  const TextDocumentDidSaveMessage(this.params);
+}
+
+@JsonSerializable()
+final class DidSaveTextDocumentParams {
+  final TextDocumentIdentifier textDocument;
+
+  const DidSaveTextDocumentParams({required this.textDocument});
+
+  factory DidSaveTextDocumentParams.fromJson(Map<String, Object?> json) =>
+      _$DidSaveTextDocumentParamsFromJson(json);
+
+  Map<String, Object?> toJson() => _$DidSaveTextDocumentParamsToJson(this);
+}
+
 /// LSP `$/cancelRequest` notification.
 ///
 /// Sent by the client to cancel a previously sent request. The server should

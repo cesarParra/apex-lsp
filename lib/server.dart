@@ -276,6 +276,9 @@ final class Server {
         if (_initializationStatus is Initialized) {
           _openDocuments.didClose(params);
         }
+      case TextDocumentDidSaveMessage():
+        // Re-indexing on save is handled in a later step.
+        break;
     }
   }
 
