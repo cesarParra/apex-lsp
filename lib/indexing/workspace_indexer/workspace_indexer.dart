@@ -60,8 +60,8 @@ final class WorkspaceIndexer {
     yield WorkDoneProgressParams(
       token: token,
       value: const WorkDoneProgressBegin(
-        title: 'Indexing Apex files',
-        message: 'Indexing…',
+        title: 'Initializing Apex LSP',
+        message: 'Building index…',
         cancellable: false,
       ),
     );
