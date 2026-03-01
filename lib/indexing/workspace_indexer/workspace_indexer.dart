@@ -12,7 +12,7 @@ import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
 export 'package:apex_lsp/indexing/workspace_indexer/index_repository.dart'
-    show IndexRepository;
+    show IndexRepository, IndexReadErrorLog;
 
 final class WorkspaceIndexer {
   WorkspaceIndexer({
@@ -173,11 +173,12 @@ final class WorkspaceIndexer {
       .where((root) => fileUri.path.startsWith(root.path))
       .firstOrNull;
 
-  IndexRepository getIndexLoader() {
+  IndexRepository getIndexLoader({IndexReadErrorLog? onError}) {
     return IndexRepository(
       fileSystem: _fileSystem,
       platform: _platform,
       workspaceRootUris: _workspaceRootUris,
+      onError: onError,
     );
   }
 

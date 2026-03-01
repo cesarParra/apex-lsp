@@ -258,7 +258,12 @@ final class Server {
             _output.progress(params: value);
           }
 
-          _indexRepository = _workspaceIndexer.getIndexLoader();
+          _indexRepository = _workspaceIndexer.getIndexLoader(
+            onError: (path, error) => logMessage(
+              MessageType.error,
+              '[apex-lsp] ERROR reading index file $path: $error',
+            ),
+          );
         }
 
       case TextDocumentDidOpenMessage(:final params):
@@ -388,7 +393,12 @@ final class Server {
   /// next completion request reflects the saved changes.
   Future<void> _reindexAndRefresh(Uri fileUri) async {
     await _workspaceIndexer.reindexFile(fileUri);
-    _indexRepository = _workspaceIndexer.getIndexLoader();
+    _indexRepository = _workspaceIndexer.getIndexLoader(
+      onError: (path, error) => logMessage(
+        MessageType.error,
+        '[apex-lsp] ERROR reading index file $path: $error',
+      ),
+    );
   }
 
   /// Removes or re-indexes the cached entries for each deleted [files], then
@@ -399,7 +409,12 @@ final class Server {
         if (Uri.tryParse(file.uri) case final uri?)
           _workspaceIndexer.deleteOrphanForUri(uri),
     ]);
-    _indexRepository = _workspaceIndexer.getIndexLoader();
+    _indexRepository = _workspaceIndexer.getIndexLoader(
+      onError: (path, error) => logMessage(
+        MessageType.error,
+        '[apex-lsp] ERROR reading index file $path: $error',
+      ),
+    );
   }
 
   Future<void> _ensureGitignoreUpdated(InitializedParams params) async {

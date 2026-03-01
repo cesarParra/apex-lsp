@@ -9,18 +9,24 @@ import 'package:apex_lsp/utils/platform.dart';
 import 'package:apex_reflection/apex_reflection.dart' as apex_reflection;
 import 'package:file/file.dart';
 
+/// Callback invoked when a JSON index file cannot be read or parsed.
+typedef IndexReadErrorLog = void Function(String path, Object error);
+
 final class IndexRepository {
   IndexRepository({
     required FileSystem fileSystem,
     required LspPlatform platform,
     required List<Uri> workspaceRootUris,
+    IndexReadErrorLog? onError,
   }) : _fileSystem = fileSystem,
        _platform = platform,
-       _workspaceRootUris = workspaceRootUris;
+       _workspaceRootUris = workspaceRootUris,
+       _onError = onError;
 
   final FileSystem _fileSystem;
   final LspPlatform _platform;
   final List<Uri> _workspaceRootUris;
+  final IndexReadErrorLog? _onError;
 
   // Populated on first access and retained for the lifetime of this instance.
   // A new IndexRepository is created after each re-index, so no explicit
@@ -60,6 +66,7 @@ final class IndexRepository {
       workspaceRoot: workspaceRoot,
       subFolder: apexIndexFolderName,
       parse: _parseApex,
+      onError: _onError,
     );
   }
 
@@ -74,6 +81,7 @@ final class IndexRepository {
         if (decoded is! Map<String, dynamic>) return null;
         return _parseSObject(decoded);
       },
+      onError: _onError,
     );
   }
 
@@ -83,6 +91,7 @@ final class IndexRepository {
     required Uri workspaceRoot,
     required String subFolder,
     required T? Function(Object? decoded) parse,
+    IndexReadErrorLog? onError,
   }) async {
     if (cache.containsKey(workspaceRoot)) return cache[workspaceRoot]!;
 
@@ -110,9 +119,8 @@ final class IndexRepository {
         if (entry == null) continue;
         final key = entry.name.value.toLowerCase();
         byName[key] = entry;
-      } catch (_) {
-        // Silently skip unreadable or malformed index files — a corrupt entry
-        // is preferable to crashing the completion pipeline.
+      } catch (error) {
+        onError?.call(file.path, error);
       }
     }
 
