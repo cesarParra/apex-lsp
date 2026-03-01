@@ -1066,6 +1066,30 @@ final class CompletionOptions {
   Map<String, Object?> toJson() => _$CompletionOptionsToJson(this);
 }
 
+/// Text document synchronization options advertised in the `initialize` response.
+///
+/// Tells the client how the server wants to receive document change
+/// notifications and whether it wants save notifications.
+final class TextDocumentSyncOptions {
+  /// How the server handles document content changes.
+  ///
+  /// `1` corresponds to `TextDocumentSyncKind.Full`.
+  final int change;
+
+  /// Whether the server wants `textDocument/didSave` notifications.
+  final bool save;
+
+  const TextDocumentSyncOptions({required this.change, required this.save});
+
+  factory TextDocumentSyncOptions.fromJson(Map<String, Object?> json) =>
+      TextDocumentSyncOptions(
+        change: json['change'] as int,
+        save: json['save'] as bool,
+      );
+
+  Map<String, Object?> toJson() => {'change': change, 'save': save};
+}
+
 /// Server capabilities advertised in the `initialize` response.
 ///
 /// Tells the client which LSP features this server supports.
@@ -1073,8 +1097,9 @@ final class CompletionOptions {
 final class ServerCapabilities {
   /// How the server handles document synchronisation.
   ///
-  /// `1` corresponds to `TextDocumentSyncKind.Full`.
-  final int? textDocumentSync;
+  /// Either an integer (`TextDocumentSyncKind`) or a [TextDocumentSyncOptions]
+  /// object when save notifications are also requested.
+  final Object? textDocumentSync;
 
   /// Completion provider options, or `null` if completion is not supported.
   final CompletionOptions? completionProvider;
@@ -1091,8 +1116,13 @@ final class ServerCapabilities {
   factory ServerCapabilities.fromJson(Map<String, Object?> json) {
     final completionProviderJson =
         json['completionProvider'] as Map<String, Object?>?;
+    final syncJson = json['textDocumentSync'];
     return ServerCapabilities(
-      textDocumentSync: json['textDocumentSync'] as int?,
+      textDocumentSync: switch (syncJson) {
+        final Map<String, Object?> map => TextDocumentSyncOptions.fromJson(map),
+        final int kind => kind,
+        _ => null,
+      },
       completionProvider: completionProviderJson != null
           ? CompletionOptions.fromJson(completionProviderJson)
           : null,

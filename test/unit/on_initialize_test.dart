@@ -18,5 +18,13 @@ void main() {
     test('server name is apex-lsp', () {
       expect(result.serverInfo?.name, equals('apex-lsp'));
     });
+
+    test('advertises full document sync with save notifications', () {
+      final sync = result.capabilities.textDocumentSync;
+      expect(sync, isA<TextDocumentSyncOptions>());
+      final options = sync as TextDocumentSyncOptions;
+      expect(options.change, equals(1));
+      expect(options.save, isTrue);
+    });
   });
 }
