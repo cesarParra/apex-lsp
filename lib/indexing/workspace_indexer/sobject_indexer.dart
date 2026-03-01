@@ -43,23 +43,26 @@ Future<List<_SObjectDir>> _collect({
 
   for (final pkgDirUri in packageDirectoryUris) {
     final pkgDirPath = pkgDirUri.toFilePath(windows: platform.isWindows);
-    final objectsRoot = fileSystem.directory(
-      fileSystem.path.join(pkgDirPath, 'main', 'default', 'objects'),
-    );
+    final pkgDir = fileSystem.directory(pkgDirPath);
 
-    if (!await objectsRoot.exists()) continue;
+    if (!await pkgDir.exists()) continue;
 
-    await for (final entity in objectsRoot.list(followLinks: false)) {
-      if (entity is! Directory) continue;
+    await for (final entity in pkgDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is! File) continue;
 
-      final objectName = fileSystem.path.basename(entity.path);
-      final metaFile = fileSystem.file(
-        fileSystem.path.join(entity.path, '$objectName.object-meta.xml'),
-      );
-      if (!await metaFile.exists()) continue;
+      final basename = fileSystem.path.basename(entity.path);
+      if (!basename.endsWith('.object-meta.xml')) continue;
+
+      // The object name is the filename stem, e.g. "Account" from
+      // "Account.object-meta.xml". The object directory is the parent.
+      final objectName = basename.replaceFirst('.object-meta.xml', '');
+      final objectDir = entity.parent;
 
       sobjectDirs.add((
-        objectDir: entity,
+        objectDir: objectDir,
         objectName: objectName,
         indexDir: indexDir,
       ));
