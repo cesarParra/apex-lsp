@@ -2,6 +2,7 @@ import 'dart:isolate';
 
 import 'package:apex_lsp/indexing/workspace_indexer/apex_index_entry.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/utils.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:apex_reflection/apex_reflection.dart' as apex_reflection;
 import 'package:file/file.dart';
@@ -29,7 +30,7 @@ Future<void> reindexApexFile({
   required File file,
   required Directory indexDir,
 }) async {
-  if (!file.path.toLowerCase().endsWith('.cls')) return;
+  if (file.metadataType is! ApexClassType) return;
 
   await _indexSingle(
     fileSystem: fileSystem,
@@ -50,7 +51,7 @@ Future<void> runApexIndexer({
   packageDirectoryUris: packageDirectoryUris,
   indexDir: indexDir,
   recognize: (file) {
-    if (!file.path.toLowerCase().endsWith('.cls')) return null;
+    if (file.metadataType is! ApexClassType) return null;
     return (file: file, workspaceRoot: workspaceRoot, indexDir: indexDir);
   },
   isStale: (apexFile) => _isStale(

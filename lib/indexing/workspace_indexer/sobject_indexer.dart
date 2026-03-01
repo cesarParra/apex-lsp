@@ -2,6 +2,7 @@ import 'package:apex_lsp/indexing/sobject_metadata.dart';
 import 'package:apex_lsp/indexing/sobject_xml_parser.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/sobject_index_entry.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/utils.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
@@ -27,9 +28,9 @@ Future<void> reindexSObjectFile({
 }) async {
   final Directory objectDir;
 
-  if (file.path.endsWith('.object-meta.xml')) {
+  if (file.metadataType is SObjectType) {
     objectDir = file.parent;
-  } else if (file.path.toLowerCase().endsWith('.field-meta.xml')) {
+  } else if (file.metadataType is SObjectFieldType) {
     // file lives at: objects/Account/fields/Name.field-meta.xml
     // parent = fields/, parent.parent = Account/
     objectDir = file.parent.parent;
@@ -60,7 +61,7 @@ Future<void> runSObjectIndexer({
   indexDir: indexDir,
   recognize: (file) {
     final basename = fileSystem.path.basename(file.path);
-    if (!basename.endsWith('.object-meta.xml')) return null;
+    if (file.metadataType is! SObjectType) return null;
     final objectName = basename.replaceFirst('.object-meta.xml', '');
     return (objectDir: file.parent, objectName: objectName, indexDir: indexDir);
   },
