@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:apex_lsp/indexing/sobject_metadata.dart';
 import 'package:apex_lsp/indexing/sobject_xml_parser.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/sobject_index_entry.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
@@ -90,15 +91,15 @@ Future<void> _indexSingle({
       fields: fields,
     );
 
-    final payload = <String, Object?>{
-      'schemaVersion': 1,
-      'objectApiName': objectName,
-      'source': <String, Object?>{
-        'objectMetaUri': Uri.file(objectMetaFile.path).toString(),
-        'relativePath': sobjectDir.objectDir.path,
-      },
-      'objectMetadata': _serialize(metadataWithFields),
-    };
+    final entry = SObjectIndexEntry(
+      schemaVersion: 1,
+      objectApiName: objectName,
+      source: SObjectIndexSource(
+        objectMetaUri: Uri.file(objectMetaFile.path).toString(),
+        relativePath: sobjectDir.objectDir.path,
+      ),
+      objectMetadata: metadataWithFields,
+    );
 
     final outPath = fileSystem.path.join(
       sobjectDir.indexDir.path,
@@ -106,7 +107,9 @@ Future<void> _indexSingle({
     );
     await fileSystem
         .file(outPath)
-        .writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+        .writeAsString(
+          const JsonEncoder.withIndent('  ').convert(entry.toJson()),
+        );
   } catch (_) {
     // Silently skip objects that fail to parse or write.
   }
@@ -131,20 +134,3 @@ Future<List<SObjectFieldMetadata>> _parseFieldFiles({
   }
   return fields;
 }
-
-Map<String, Object?> _serialize(SObjectMetadata metadata) => {
-  'apiName': metadata.apiName,
-  'label': metadata.label,
-  'pluralLabel': metadata.pluralLabel,
-  'description': metadata.description,
-  'fields': metadata.fields
-      .map(
-        (field) => <String, Object?>{
-          'apiName': field.apiName,
-          'label': field.label,
-          'type': field.type,
-          'description': field.description,
-        },
-      )
-      .toList(),
-};

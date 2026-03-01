@@ -236,7 +236,7 @@ void main() {
       expect(progressEvents, hasLength(2));
       expect(
         (progressEvents.first.value as WorkDoneProgressBegin).title,
-        equals('Indexing Apex files'),
+        equals('Initializing Apex LSP'),
       );
       expect(
         (progressEvents.last.value as WorkDoneProgressEnd).message,

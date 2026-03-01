@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:isolate';
 
+import 'package:apex_lsp/indexing/workspace_indexer/apex_index_entry.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:apex_reflection/apex_reflection.dart' as apex_reflection;
@@ -78,15 +79,15 @@ Future<void> _indexSingle({
       absolutePath: apexFile.file.path,
     );
 
-    final payload = <String, Object?>{
-      'schemaVersion': 1,
-      'className': className,
-      'source': <String, Object?>{
-        'uri': Uri.file(apexFile.file.path).toString(),
-        'relativePath': relativePath,
-      },
-      'typeMirror': typeMirrorJson,
-    };
+    final entry = ApexIndexEntry(
+      schemaVersion: 1,
+      className: className,
+      source: ApexIndexSource(
+        uri: Uri.file(apexFile.file.path).toString(),
+        relativePath: relativePath,
+      ),
+      typeMirror: typeMirrorJson,
+    );
 
     final outPath = fileSystem.path.join(
       apexFile.indexDir.path,
@@ -94,7 +95,9 @@ Future<void> _indexSingle({
     );
     await fileSystem
         .file(outPath)
-        .writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+        .writeAsString(
+          const JsonEncoder.withIndent('  ').convert(entry.toJson()),
+        );
   } catch (_) {
     // Silently skip files that fail to reflect or write.
   }

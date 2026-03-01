@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/index_paths.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/apex_index_entry.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/sobject_index_entry.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:apex_reflection/apex_reflection.dart' as apex_reflection;
@@ -145,44 +147,29 @@ final class IndexRepository {
   }
 
   IndexedSObject? _parseSObject(Map<String, dynamic> decoded) {
-    final objectApiName = decoded['objectApiName'] as String?;
-    if (objectApiName == null) return null;
-
-    final metadata = decoded['objectMetadata'];
-    if (metadata is! Map<String, dynamic>) return null;
-
-    final rawFields = metadata['fields'];
-    final fields = <FieldMember>[];
-    if (rawFields is List) {
-      for (final rawField in rawFields) {
-        if (rawField is! Map<String, dynamic>) continue;
-        final apiName = rawField['apiName'] as String?;
-        if (apiName == null) continue;
-        final type = rawField['type'] as String?;
-        fields.add(
-          FieldMember(
-            DeclarationName(apiName),
+    final entry = SObjectIndexEntry.fromJson(decoded);
+    final fields = entry.objectMetadata.fields
+        .map(
+          (field) => FieldMember(
+            DeclarationName(field.apiName),
             isStatic: false,
             visibility: AlwaysVisible(),
-            typeName: type != null ? DeclarationName(type) : null,
+            typeName: field.type != null ? DeclarationName(field.type!) : null,
           ),
-        );
-      }
-    }
+        )
+        .toList();
 
     return IndexedSObject(
-      DeclarationName(objectApiName),
+      DeclarationName(entry.objectApiName),
       fields: fields,
       visibility: AlwaysVisible(),
     );
   }
 
   IndexedType? _parseApex(Object? decoded) {
-    if (decoded is! Map) return null;
-    final typeMirror = decoded['typeMirror'];
-    if (typeMirror is! Map) return null;
-
-    final typeMirrorJson = typeMirror as Map<String, dynamic>;
+    if (decoded is! Map<String, dynamic>) return null;
+    final entry = ApexIndexEntry.fromJson(decoded);
+    final typeMirrorJson = entry.typeMirror;
 
     IndexedEnum fromEnumMirror(apex_reflection.EnumMirror mirror) =>
         IndexedEnum(
