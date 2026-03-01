@@ -63,20 +63,7 @@ final class IndexRepository {
       cache: _apexCache,
       workspaceRoot: workspaceRoot,
       subFolder: apexIndexFolderName,
-      parse: (decoded) {
-        final indexedType = _parseApex(decoded);
-        if (indexedType == null) {
-          final typeMirror = decoded is Map ? decoded['typeMirror'] : null;
-          final typeNameValue = typeMirror is Map
-              ? typeMirror['type_name']
-              : 'unknown';
-          _log?.call(
-            'SKIPPED: _parseApex returned null (type_name=$typeNameValue)',
-          );
-          return null;
-        }
-        return indexedType;
-      },
+      parse: _parseApex,
       onDirectoryMissing: () {
         _log?.call('Index directory does not exist');
       },
@@ -110,10 +97,6 @@ final class IndexRepository {
   }
 
   /// Loads and caches typed index entries from a subfolder of the index root.
-  ///
-  /// Shared between Apex and SObject loading — both follow the same pattern of
-  /// listing JSON files in a known directory, parsing each, and caching by
-  /// lower-cased name.
   Future<Map<String, T>> _loadFromCache<T extends IndexedType>({
     required Map<Uri, Map<String, T>> cache,
     required Uri workspaceRoot,
