@@ -12,22 +12,24 @@ version is automatically installed for you.
 
 ### Indexing
 
-### Limitations
+#### Limitations
 - Only local files
 - Only Apex files (no SObjects)
 
 ### Autocompletion
 
-### Limitations
+#### Limitations
 - No inheritance support (`super.` calls are not autocompleted)
 - No Apexdocs support
 
 ### Hover
 
-### Limitations
+#### Limitations
 - No Apexdocs support
 
-### Contributing
+---
+
+## Contributing
 
 ### Requirements
 
