@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 import 'package:apex_lsp/indexing/sobject_metadata.dart';
 import 'package:apex_lsp/indexing/sobject_xml_parser.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
@@ -17,71 +17,23 @@ Future<void> runSObjectIndexer({
   required LspPlatform platform,
   required List<Uri> packageDirectoryUris,
   required Directory indexDir,
-}) async {
-  final dirs = await _collect(
-    fileSystem: fileSystem,
-    platform: platform,
-    packageDirectoryUris: packageDirectoryUris,
-    indexDir: indexDir,
-  );
-  final stale = await _filterStale(fileSystem: fileSystem, dirs: dirs);
-  await _indexInParallel(fileSystem: fileSystem, dirs: stale);
-  await _removeOrphans(
-    fileSystem: fileSystem,
-    sobjectDirs: dirs,
-    indexDir: indexDir,
-  );
-}
-
-Future<List<_SObjectDir>> _collect({
-  required FileSystem fileSystem,
-  required LspPlatform platform,
-  required List<Uri> packageDirectoryUris,
-  required Directory indexDir,
-}) async {
-  final sobjectDirs = <_SObjectDir>[];
-
-  for (final pkgDirUri in packageDirectoryUris) {
-    final pkgDirPath = pkgDirUri.toFilePath(windows: platform.isWindows);
-    final pkgDir = fileSystem.directory(pkgDirPath);
-
-    if (!await pkgDir.exists()) continue;
-
-    await for (final entity in pkgDir.list(
-      recursive: true,
-      followLinks: false,
-    )) {
-      if (entity is! File) continue;
-
-      final basename = fileSystem.path.basename(entity.path);
-      if (!basename.endsWith('.object-meta.xml')) continue;
-
-      // The object name is the filename stem, e.g. "Account" from
-      // "Account.object-meta.xml". The object directory is the parent.
-      final objectName = basename.replaceFirst('.object-meta.xml', '');
-      final objectDir = entity.parent;
-
-      sobjectDirs.add((
-        objectDir: objectDir,
-        objectName: objectName,
-        indexDir: indexDir,
-      ));
-    }
-  }
-
-  return sobjectDirs;
-}
-
-Future<List<_SObjectDir>> _filterStale({
-  required FileSystem fileSystem,
-  required List<_SObjectDir> dirs,
-}) async {
-  final stale = <_SObjectDir>[];
-  for (final dir in dirs) {
-    if (await _isStale(fileSystem: fileSystem, sobjectDir: dir)) stale.add(dir);
-  }
-  return stale;
-}
+}) => runIndexer<_SObjectDir>(
+  fileSystem: fileSystem,
+  platform: platform,
+  packageDirectoryUris: packageDirectoryUris,
+  indexDir: indexDir,
+  recognize: (file) {
+    final basename = fileSystem.path.basename(file.path);
+    if (!basename.endsWith('.object-meta.xml')) return null;
+    final objectName = basename.replaceFirst('.object-meta.xml', '');
+    return (objectDir: file.parent, objectName: objectName, indexDir: indexDir);
+  },
+  isStale: (sobjectDir) =>
+      _isStale(fileSystem: fileSystem, sobjectDir: sobjectDir),
+  index: (sobjectDir) =>
+      _indexSingle(fileSystem: fileSystem, sobjectDir: sobjectDir),
+  nameOf: (sobjectDir) => sobjectDir.objectName,
+);
 
 Future<bool> _isStale({
   required FileSystem fileSystem,
@@ -108,19 +60,6 @@ Future<bool> _isStale({
   }
 
   return false;
-}
-
-Future<void> _indexInParallel({
-  required FileSystem fileSystem,
-  required List<_SObjectDir> dirs,
-}) async {
-  final batchSize = Platform.numberOfProcessors;
-  for (var offset = 0; offset < dirs.length; offset += batchSize) {
-    final batch = dirs.skip(offset).take(batchSize).toList();
-    await Future.wait(
-      batch.map((d) => _indexSingle(fileSystem: fileSystem, sobjectDir: d)),
-    );
-  }
 }
 
 Future<void> _indexSingle({
@@ -209,19 +148,3 @@ Map<String, Object?> _serialize(SObjectMetadata metadata) => {
       )
       .toList(),
 };
-
-Future<void> _removeOrphans({
-  required FileSystem fileSystem,
-  required List<_SObjectDir> sobjectDirs,
-  required Directory indexDir,
-}) async {
-  final knownNames = sobjectDirs.map((d) => d.objectName.toLowerCase()).toSet();
-
-  await for (final entity in indexDir.list()) {
-    if (entity is! File || !entity.path.endsWith('.json')) continue;
-    final stem = fileSystem.path
-        .basenameWithoutExtension(entity.path)
-        .toLowerCase();
-    if (!knownNames.contains(stem)) await entity.delete();
-  }
-}
