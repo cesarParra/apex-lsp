@@ -111,9 +111,22 @@ Future<void> _removeOrphans<T>({
   required List<T> items,
   required Directory indexDir,
   required String Function(T) nameOf,
-}) async {
-  final knownNames = items.map((i) => nameOf(i).toLowerCase()).toSet();
+}) => removeOrphans(
+  fileSystem: fileSystem,
+  knownNames: items.map((i) => nameOf(i).toLowerCase()).toSet(),
+  indexDir: indexDir,
+);
 
+/// Deletes any `.json` file in [indexDir] whose stem (lowercased) is not in
+/// [knownNames].
+///
+/// Called by [runIndexer] after every full index pass, and directly by
+/// per-file re-index functions after updating a single entry.
+Future<void> removeOrphans({
+  required FileSystem fileSystem,
+  required Set<String> knownNames,
+  required Directory indexDir,
+}) async {
   await for (final entity in indexDir.list()) {
     if (entity is! File || !entity.path.endsWith('.json')) continue;
     final stem = fileSystem.path

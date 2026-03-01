@@ -11,6 +11,43 @@ typedef _SObjectDir = ({
   Directory indexDir,
 });
 
+/// Re-indexes the SObject associated with [file], which may be either the
+/// `.object-meta.xml` file itself or any `.field-meta.xml` file inside its
+/// `fields/` subdirectory.
+///
+/// File-to-object resolution:
+/// - `.object-meta.xml` → `file.parent` is the object directory.
+/// - `.field-meta.xml`  → `file.parent.parent` is the object directory
+///   (`fields/` → `ObjectName/`).
+Future<void> reindexSObjectFile({
+  required FileSystem fileSystem,
+  required LspPlatform platform,
+  required File file,
+  required Directory indexDir,
+}) async {
+  final Directory objectDir;
+
+  if (file.path.endsWith('.object-meta.xml')) {
+    objectDir = file.parent;
+  } else if (file.path.toLowerCase().endsWith('.field-meta.xml')) {
+    // file lives at: objects/Account/fields/Name.field-meta.xml
+    // parent = fields/, parent.parent = Account/
+    objectDir = file.parent.parent;
+  } else {
+    return;
+  }
+
+  final objectName = fileSystem.path.basename(objectDir.path);
+  await _indexSingle(
+    fileSystem: fileSystem,
+    sobjectDir: (
+      objectDir: objectDir,
+      objectName: objectName,
+      indexDir: indexDir,
+    ),
+  );
+}
+
 Future<void> runSObjectIndexer({
   required FileSystem fileSystem,
   required LspPlatform platform,

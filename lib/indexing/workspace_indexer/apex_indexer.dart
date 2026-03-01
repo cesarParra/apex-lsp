@@ -18,6 +18,26 @@ Future<Map<String, Object?>> _reflectApexSource(String source) async {
 
 typedef _ApexFile = ({File file, Uri workspaceRoot, Directory indexDir});
 
+/// Re-indexes a single Apex [file] that was just saved.
+///
+/// Unlike [runApexIndexer], this skips the staleness check — a save event
+/// always means the file has changed — and processes only the one file.
+Future<void> reindexApexFile({
+  required FileSystem fileSystem,
+  required LspPlatform platform,
+  required Uri workspaceRoot,
+  required File file,
+  required Directory indexDir,
+}) async {
+  if (!file.path.toLowerCase().endsWith('.cls')) return;
+
+  await _indexSingle(
+    fileSystem: fileSystem,
+    platform: platform,
+    apexFile: (file: file, workspaceRoot: workspaceRoot, indexDir: indexDir),
+  );
+}
+
 Future<void> runApexIndexer({
   required FileSystem fileSystem,
   required LspPlatform platform,
