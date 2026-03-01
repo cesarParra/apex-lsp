@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:test/test.dart';
 
 import '../../support/cursor_utils.dart';
@@ -27,7 +28,9 @@ void main() {
         waitForIndexing: true,
       );
 
-      final indexDir = Directory('${workspace.directory.path}/.sf-zed');
+      final indexDir = Directory(
+        '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName',
+      );
       expect(indexDir.existsSync(), isTrue);
       expect(File('${indexDir.path}/Greeter.json').existsSync(), isTrue);
 
@@ -47,7 +50,9 @@ void main() {
       );
       await firstClient.dispose();
 
-      final jsonFile = File('${workspace.directory.path}/.sf-zed/Greeter.json');
+      final jsonFile = File(
+        '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName/Greeter.json',
+      );
       final modifiedAfterFirstRun = jsonFile.lastModifiedSync();
 
       // Second run — nothing changed, so Greeter.json should be untouched.
@@ -86,9 +91,11 @@ void main() {
         await firstClient.dispose();
 
         final alphaJson = File(
-          '${workspace.directory.path}/.sf-zed/Alpha.json',
+          '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName/Alpha.json',
         );
-        final betaJson = File('${workspace.directory.path}/.sf-zed/Beta.json');
+        final betaJson = File(
+          '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName/Beta.json',
+        );
         final alphaModified = alphaJson.lastModifiedSync();
         final betaModified = betaJson.lastModifiedSync();
 

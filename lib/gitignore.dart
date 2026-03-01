@@ -1,9 +1,11 @@
 import 'package:file/file.dart';
 
-/// Ensures `.sf-zed` appears as an entry in the `.gitignore` file at
-/// [workspaceRoot].
+import 'package:apex_lsp/indexing/index_paths.dart';
+
+/// Ensures the index root folder appears as an entry in the `.gitignore` file
+/// at [workspaceRoot].
 ///
-/// If no `.gitignore` exists it is created. If one already contains `.sf-zed`
+/// If no `.gitignore` exists it is created. If one already contains the entry
 /// (as a standalone line) it is left untouched.
 Future<void> ensureSfZedIgnored(
   Directory workspaceRoot,
@@ -16,12 +18,14 @@ Future<void> ensureSfZedIgnored(
     final contents = await gitignoreFile.readAsString();
     if (_containsSfZedEntry(contents)) return;
     final separator = contents.endsWith('\n') ? '' : '\n';
-    await gitignoreFile.writeAsString('$contents$separator.sf-zed\n');
+    await gitignoreFile.writeAsString(
+      '$contents$separator$indexRootFolderName\n',
+    );
   } else {
-    await gitignoreFile.writeAsString('.sf-zed\n');
+    await gitignoreFile.writeAsString('$indexRootFolderName\n');
   }
 }
 
-/// Returns true if [contents] already has a `.sf-zed` line entry.
+/// Returns true if [contents] already has the index root folder as a line entry.
 bool _containsSfZedEntry(String contents) =>
-    contents.split('\n').any((line) => line.trim() == '.sf-zed');
+    contents.split('\n').any((line) => line.trim() == indexRootFolderName);

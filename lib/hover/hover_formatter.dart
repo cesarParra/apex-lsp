@@ -49,6 +49,7 @@ String _formatType(IndexedType type) => switch (type) {
         : 'class ${type.name.value}',
   IndexedEnum() => 'enum ${type.name.value}',
   IndexedInterface() => 'interface ${type.name.value}',
+  IndexedSObject() => 'SObject ${type.name.value}',
 };
 
 String _formatMethod(MethodDeclaration method, {IndexedType? parentType}) {

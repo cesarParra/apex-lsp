@@ -2,6 +2,12 @@ import 'dart:io';
 
 typedef ClassFile = ({String name, String source});
 
+typedef SObjectFile = ({
+  String objectName,
+  String objectMetaXml,
+  List<({String name, String xml})> fields,
+});
+
 /// A temporary SFDX workspace for integration tests.
 final class TestWorkspace {
   final Directory directory;
@@ -10,16 +16,20 @@ final class TestWorkspace {
 
   Uri get uri => Uri.directory(directory.path);
 
-  String get classesPath =>
-      '${directory.path}/force-app/main/default/classes';
+  String get classesPath => '${directory.path}/force-app/main/default/classes';
+
+  String get objectsPath => '${directory.path}/force-app/main/default/objects';
 }
 
-/// Creates a temporary SFDX workspace with the given Apex class files.
+/// Creates a temporary SFDX workspace with the given Apex class files and
+/// SObject metadata files.
 ///
-/// The workspace includes an `sfdx-project.json` copied from fixtures
-/// and the standard `force-app/main/default/classes` directory.
+/// The workspace includes an `sfdx-project.json` copied from fixtures,
+/// the standard `force-app/main/default/classes` directory, and optionally
+/// `force-app/main/default/objects/<ObjectName>/` directories.
 Future<TestWorkspace> createTestWorkspace({
   List<ClassFile> classFiles = const [],
+  List<SObjectFile> objectFiles = const [],
 }) async {
   final directory = await Directory.systemTemp.createTemp('apex-lsp-it-');
 
@@ -36,6 +46,30 @@ Future<TestWorkspace> createTestWorkspace({
   for (final classFile in classFiles) {
     final file = File('${classesDir.path}/${classFile.name}');
     await file.writeAsString(classFile.source);
+  }
+
+  for (final objectFile in objectFiles) {
+    final objectDir = Directory(
+      '${directory.path}/force-app/main/default/objects/${objectFile.objectName}',
+    );
+    await objectDir.create(recursive: true);
+
+    final objectMetaFile = File(
+      '${objectDir.path}/${objectFile.objectName}.object-meta.xml',
+    );
+    await objectMetaFile.writeAsString(objectFile.objectMetaXml);
+
+    if (objectFile.fields.isNotEmpty) {
+      final fieldsDir = Directory('${objectDir.path}/fields');
+      await fieldsDir.create();
+
+      for (final field in objectFile.fields) {
+        final fieldFile = File(
+          '${fieldsDir.path}/${field.name}.field-meta.xml',
+        );
+        await fieldFile.writeAsString(field.xml);
+      }
+    }
   }
 
   return TestWorkspace(directory);

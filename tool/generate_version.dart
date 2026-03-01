@@ -2,6 +2,8 @@
 ///
 /// Run this whenever pubspec.yaml version changes:
 ///   dart run tool/generate_version.dart
+library;
+
 import 'dart:io';
 
 void main() {

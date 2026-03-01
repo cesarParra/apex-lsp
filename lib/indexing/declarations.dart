@@ -108,6 +108,17 @@ final class IndexedEnum extends IndexedType {
   });
 }
 
+final class IndexedSObject extends IndexedType {
+  final List<FieldMember> fields;
+
+  IndexedSObject(
+    super.name, {
+    required this.fields,
+    required super.visibility,
+    super.location,
+  });
+}
+
 final class FieldMember extends Declaration {
   final DeclarationName? typeName;
   final bool isStatic;
