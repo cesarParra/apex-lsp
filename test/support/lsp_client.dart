@@ -106,6 +106,34 @@ final class LspClient {
     await _pumpEventLoop();
   }
 
+  /// Sends a `textDocument/didSave` notification.
+  Future<void> saveDocument({required String uri}) async {
+    input.addFrame(
+      jsonRpcNotification(
+        method: 'textDocument/didSave',
+        params: {
+          'textDocument': {'uri': uri},
+        },
+      ),
+    );
+    await _pumpEventLoop();
+  }
+
+  /// Sends a `workspace/didDeleteFiles` notification.
+  Future<void> deleteFiles({required List<String> uris}) async {
+    input.addFrame(
+      jsonRpcNotification(
+        method: 'workspace/didDeleteFiles',
+        params: {
+          'files': [
+            for (final uri in uris) {'uri': uri},
+          ],
+        },
+      ),
+    );
+    await _pumpEventLoop();
+  }
+
   /// Sends a `textDocument/didClose` notification.
   Future<void> closeDocument({required String uri}) async {
     input.addFrame(

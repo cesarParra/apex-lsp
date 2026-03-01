@@ -258,10 +258,7 @@ final class Server {
             _output.progress(params: value);
           }
 
-          _indexRepository = _workspaceIndexer.getIndexLoader(
-            log: (message) =>
-                logMessage(MessageType.log, '[apex-lsp] $message'),
-          );
+          _indexRepository = _workspaceIndexer.getIndexLoader();
         }
 
       case TextDocumentDidOpenMessage(:final params):
@@ -276,12 +273,15 @@ final class Server {
         if (_initializationStatus is Initialized) {
           _openDocuments.didClose(params);
         }
-      case TextDocumentDidSaveMessage():
-        // Re-indexing on save is handled in a later step.
-        break;
-      case WorkspaceDidDeleteFilesMessage():
-        // Orphan removal on delete is handled in a later step.
-        break;
+      case TextDocumentDidSaveMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          final uri = Uri.tryParse(params.textDocument.uri);
+          if (uri != null) unawaited(_reindexAndRefresh(uri));
+        }
+      case WorkspaceDidDeleteFilesMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          unawaited(_deleteOrphansAndRefresh(params.files));
+        }
     }
   }
 
@@ -340,15 +340,6 @@ final class Server {
     final localIndex = localIndexer.parseAndIndex(text);
     final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
 
-    await logMessage(
-      MessageType.log,
-      '[apex-lsp] Completion request: '
-      'uri=${params.textDocument.uri} '
-      'pos=(${params.position.line}:${params.position.character}) '
-      'localIndex=${localIndex.length} '
-      'workspaceTypes=${workspaceTypes.length}',
-    );
-
     final index = [...localIndex, ...workspaceTypes];
 
     final cursorOffset = offsetAtPosition(
@@ -364,7 +355,6 @@ final class Server {
       position: params.position,
       index: expandedIndex,
       sources: [declarationSource(expandedIndex), keywordSource],
-      log: (message) => logMessage(MessageType.log, '[apex-lsp] $message'),
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
   }
@@ -392,6 +382,24 @@ final class Server {
     );
 
     await _output.sendResponse(id: id, result: result?.toJson());
+  }
+
+  /// Re-indexes [fileUri] on disk then replaces the in-memory index so the
+  /// next completion request reflects the saved changes.
+  Future<void> _reindexAndRefresh(Uri fileUri) async {
+    await _workspaceIndexer.reindexFile(fileUri);
+    _indexRepository = _workspaceIndexer.getIndexLoader();
+  }
+
+  /// Removes or re-indexes the cached entries for each deleted [files], then
+  /// replaces the in-memory index so completions no longer include stale types.
+  Future<void> _deleteOrphansAndRefresh(List<FileDelete> files) async {
+    await Future.wait([
+      for (final file in files)
+        if (Uri.tryParse(file.uri) case final uri?)
+          _workspaceIndexer.deleteOrphanForUri(uri),
+    ]);
+    _indexRepository = _workspaceIndexer.getIndexLoader();
   }
 
   Future<void> _ensureGitignoreUpdated(InitializedParams params) async {

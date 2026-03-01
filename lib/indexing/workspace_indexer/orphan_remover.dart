@@ -21,11 +21,13 @@ Future<void> deleteOrphanForFile({
 
   if (lowerPath.endsWith('.cls')) {
     final stem = fileSystem.path.basenameWithoutExtension(path);
-    await _deleteIfExists(apexIndexDir.childFile('$stem.json'));
+    final jsonFile = apexIndexDir.childFile('$stem.json');
+    await _deleteIfExists(jsonFile);
   } else if (lowerPath.endsWith('.object-meta.xml')) {
     final basename = fileSystem.path.basename(path);
     final objectName = basename.replaceFirst('.object-meta.xml', '');
-    await _deleteIfExists(sobjectIndexDir.childFile('$objectName.json'));
+    final jsonFile = sobjectIndexDir.childFile('$objectName.json');
+    await _deleteIfExists(jsonFile);
   } else if (lowerPath.endsWith('.field-meta.xml')) {
     // Path: .../objects/Account/fields/SomeField.field-meta.xml
     // parent = fields/,  parent.parent = Account/
@@ -51,5 +53,7 @@ Future<void> deleteOrphanForFile({
 }
 
 Future<void> _deleteIfExists(File file) async {
-  if (await file.exists()) await file.delete();
+  if (await file.exists()) {
+    await file.delete();
+  }
 }

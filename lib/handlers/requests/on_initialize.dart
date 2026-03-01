@@ -10,6 +10,19 @@ InitializeResult onInitialize(InitializeRequest req) {
       ),
       completionProvider: CompletionOptions(triggerCharacters: ['.']),
       hoverProvider: true,
+      workspace: {
+        'fileOperations': {
+          'didDelete': {
+            'filters': [
+              {
+                'pattern': {
+                  'glob': '**/*.{cls,object-meta.xml,field-meta.xml}',
+                },
+              },
+            ],
+          },
+        },
+      },
     ),
     serverInfo: ServerInfo(name: 'apex-lsp', version: packageVersion),
   );

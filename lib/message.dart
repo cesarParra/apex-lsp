@@ -483,11 +483,108 @@ final class WorkspaceFolder {
   }
 }
 
+/// LSP `ClientCapabilities.workspace.fileOperations` sub-object.
+///
+/// Reports which file-operation notifications the client will send.
+/// Used to verify that the IDE supports `workspace/didDeleteFiles` before
+/// relying on it for index maintenance.
+@JsonSerializable()
+final class FileOperationsClientCapabilities {
+  /// Whether the client supports `workspace/didCreate` notifications.
+  final bool? didCreate;
+
+  /// Whether the client supports `workspace/willCreate` requests.
+  final bool? willCreate;
+
+  /// Whether the client supports `workspace/didRename` notifications.
+  final bool? didRename;
+
+  /// Whether the client supports `workspace/willRename` requests.
+  final bool? willRename;
+
+  /// Whether the client supports `workspace/didDelete` notifications.
+  final bool? didDelete;
+
+  /// Whether the client supports `workspace/willDelete` requests.
+  final bool? willDelete;
+
+  const FileOperationsClientCapabilities({
+    this.didCreate,
+    this.willCreate,
+    this.didRename,
+    this.willRename,
+    this.didDelete,
+    this.willDelete,
+  });
+
+  factory FileOperationsClientCapabilities.fromJson(
+    Map<String, dynamic> json,
+  ) => _$FileOperationsClientCapabilitiesFromJson(json);
+
+  Map<String, dynamic> toJson() =>
+      _$FileOperationsClientCapabilitiesToJson(this);
+
+  @override
+  String toString() =>
+      'FileOperationsClientCapabilities{'
+      'didCreate: $didCreate, '
+      'willCreate: $willCreate, '
+      'didRename: $didRename, '
+      'willRename: $willRename, '
+      'didDelete: $didDelete, '
+      'willDelete: $willDelete'
+      '}';
+}
+
+/// LSP `ClientCapabilities.workspace` sub-object.
+///
+/// Only the fields relevant to this server are modelled; all others are
+/// silently ignored during deserialization.
+@JsonSerializable()
+final class WorkspaceClientCapabilities {
+  /// File-operation notification/request support.
+  final FileOperationsClientCapabilities? fileOperations;
+
+  const WorkspaceClientCapabilities({this.fileOperations});
+
+  factory WorkspaceClientCapabilities.fromJson(Map<String, dynamic> json) =>
+      _$WorkspaceClientCapabilitiesFromJson(json);
+
+  Map<String, dynamic> toJson() => _$WorkspaceClientCapabilitiesToJson(this);
+
+  @override
+  String toString() =>
+      'WorkspaceClientCapabilities{fileOperations: $fileOperations}';
+}
+
+/// LSP `ClientCapabilities` from the `initialize` request.
+///
+/// Only the `workspace` sub-object is modelled; all other capability categories
+/// (`textDocument`, `window`, `general`, etc.) are silently ignored.
+@JsonSerializable()
+final class ClientCapabilities {
+  /// Workspace-level capabilities declared by the client.
+  final WorkspaceClientCapabilities? workspace;
+
+  const ClientCapabilities({this.workspace});
+
+  factory ClientCapabilities.fromJson(Map<String, dynamic> json) =>
+      _$ClientCapabilitiesFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ClientCapabilitiesToJson(this);
+
+  @override
+  String toString() => 'ClientCapabilities{workspace: $workspace}';
+}
+
 @JsonSerializable()
 final class InitializedParams {
   final List<WorkspaceFolder>? workspaceFolders;
 
-  const InitializedParams(this.workspaceFolders);
+  /// Capabilities advertised by the client in the `initialize` request.
+  final ClientCapabilities? capabilities;
+
+  const InitializedParams(this.workspaceFolders, {this.capabilities});
 
   factory InitializedParams.fromJson(Map<String, dynamic> json) =>
       _$InitializedParamsFromJson(json);
@@ -496,7 +593,7 @@ final class InitializedParams {
 
   @override
   String toString() {
-    return 'InitializedParams{workspaceFolders: $workspaceFolders}';
+    return 'InitializedParams{workspaceFolders: $workspaceFolders, capabilities: $capabilities}';
   }
 }
 
@@ -1174,10 +1271,17 @@ final class ServerCapabilities {
   /// Whether the server supports hover requests.
   final bool? hoverProvider;
 
+  /// Workspace-level capability options (e.g. file operation filters).
+  ///
+  /// Stored as a raw map so callers can compose arbitrary LSP workspace
+  /// capability structures without requiring a full typed hierarchy.
+  final Map<String, Object?>? workspace;
+
   const ServerCapabilities({
     this.textDocumentSync,
     this.completionProvider,
     this.hoverProvider,
+    this.workspace,
   });
 
   factory ServerCapabilities.fromJson(Map<String, Object?> json) {
@@ -1194,6 +1298,7 @@ final class ServerCapabilities {
           ? CompletionOptions.fromJson(completionProviderJson)
           : null,
       hoverProvider: json['hoverProvider'] as bool?,
+      workspace: json['workspace'] as Map<String, Object?>?,
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/apex_indexer.dart'
     show reindexApexFile, runApexIndexer;
 import 'package:apex_lsp/indexing/workspace_indexer/index_repository.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/orphan_remover.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/sobject_indexer.dart'
     show reindexSObjectFile, runSObjectIndexer;
 import 'package:apex_lsp/indexing/workspace_indexer/utils.dart';
@@ -11,7 +12,7 @@ import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
 export 'package:apex_lsp/indexing/workspace_indexer/index_repository.dart'
-    show IndexRepository, IndexRepositoryLog;
+    show IndexRepository;
 
 final class WorkspaceIndexer {
   WorkspaceIndexer({
@@ -87,10 +88,7 @@ final class WorkspaceIndexer {
   ///
   /// If [fileUri] does not belong to any known workspace root, this is a no-op.
   Future<void> reindexFile(Uri fileUri) async {
-    final root = _workspaceRootUris.where((rootUri) {
-      return fileUri.path.startsWith(rootUri.path);
-    }).firstOrNull;
-
+    final root = _workspaceRootFor(fileUri);
     if (root == null) return;
 
     final rootPath = root.toFilePath(windows: _platform.isWindows);
@@ -134,12 +132,52 @@ final class WorkspaceIndexer {
     }
   }
 
-  IndexRepository getIndexLoader({IndexRepositoryLog? log}) {
+  /// Removes or re-indexes the cached entry for a file that has been deleted
+  /// from disk.
+  ///
+  /// Delegates to [deleteOrphanForFile], which routes based on the URI path:
+  /// - `.cls`             → deletes the corresponding Apex JSON
+  /// - `.object-meta.xml` → deletes the corresponding SObject JSON
+  /// - `.field-meta.xml`  → re-indexes the parent SObject
+  /// - anything else      → no-op
+  ///
+  /// If [fileUri] does not belong to any known workspace root, this is a no-op.
+  Future<void> deleteOrphanForUri(Uri fileUri) async {
+    final root = _workspaceRootFor(fileUri);
+    if (root == null) return;
+
+    final rootPath = root.toFilePath(windows: _platform.isWindows);
+    final apexIndexDir = _fileSystem.directory(
+      _fileSystem.path.join(rootPath, indexRootFolderName, apexIndexFolderName),
+    );
+    final sobjectIndexDir = _fileSystem.directory(
+      _fileSystem.path.join(
+        rootPath,
+        indexRootFolderName,
+        sobjectIndexFolderName,
+      ),
+    );
+
+    await deleteOrphanForFile(
+      fileSystem: _fileSystem,
+      platform: _platform,
+      deletedFileUri: fileUri,
+      apexIndexDir: apexIndexDir,
+      sobjectIndexDir: sobjectIndexDir,
+    );
+  }
+
+  /// Returns the workspace root that [fileUri] belongs to, or `null` if it
+  /// does not belong to any known root.
+  Uri? _workspaceRootFor(Uri fileUri) => _workspaceRootUris
+      .where((root) => fileUri.path.startsWith(root.path))
+      .firstOrNull;
+
+  IndexRepository getIndexLoader() {
     return IndexRepository(
       fileSystem: _fileSystem,
       platform: _platform,
       workspaceRootUris: _workspaceRootUris,
-      log: log,
     );
   }
 
