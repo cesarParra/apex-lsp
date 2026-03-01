@@ -15,11 +15,6 @@ typedef _SObjectDir = ({
 /// Re-indexes the SObject associated with [file], which may be either the
 /// `.object-meta.xml` file itself or any `.field-meta.xml` file inside its
 /// `fields/` subdirectory.
-///
-/// File-to-object resolution:
-/// - `.object-meta.xml` → `file.parent` is the object directory.
-/// - `.field-meta.xml`  → `file.parent.parent` is the object directory
-///   (`fields/` → `ObjectName/`).
 Future<void> reindexSObjectFile({
   required FileSystem fileSystem,
   required LspPlatform platform,

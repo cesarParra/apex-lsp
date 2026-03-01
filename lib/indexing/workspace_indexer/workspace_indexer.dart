@@ -80,13 +80,6 @@ final class WorkspaceIndexer {
   }
 
   /// Re-indexes the single file at [fileUri] using the appropriate indexer.
-  ///
-  /// Routes based on file extension:
-  /// - `.cls` → [reindexApexFile]
-  /// - `.object-meta.xml` or `.field-meta.xml` → [reindexSObjectFile]
-  /// - anything else → no-op
-  ///
-  /// If [fileUri] does not belong to any known workspace root, this is a no-op.
   Future<void> reindexFile(Uri fileUri) async {
     final root = _workspaceRootFor(fileUri);
     if (root == null) return;
@@ -134,14 +127,6 @@ final class WorkspaceIndexer {
 
   /// Removes or re-indexes the cached entry for a file that has been deleted
   /// from disk.
-  ///
-  /// Delegates to [deleteOrphanForFile], which routes based on the URI path:
-  /// - `.cls`             → deletes the corresponding Apex JSON
-  /// - `.object-meta.xml` → deletes the corresponding SObject JSON
-  /// - `.field-meta.xml`  → re-indexes the parent SObject
-  /// - anything else      → no-op
-  ///
-  /// If [fileUri] does not belong to any known workspace root, this is a no-op.
   Future<void> deleteOrphanForUri(Uri fileUri) async {
     final root = _workspaceRootFor(fileUri);
     if (root == null) return;

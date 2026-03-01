@@ -3,12 +3,6 @@ import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
 /// Handles the index side-effects of a file deletion.
-///
-/// - `.cls`             → deletes `apexIndexDir/<stem>.json`
-/// - `.object-meta.xml` → deletes `sobjectIndexDir/<objectName>.json`
-/// - `.field-meta.xml`  → re-indexes the parent SObject so the remaining
-///   fields are reflected; no-op if the object directory no longer exists
-/// - anything else      → no-op
 Future<void> deleteOrphanForFile({
   required FileSystem fileSystem,
   required LspPlatform platform,
