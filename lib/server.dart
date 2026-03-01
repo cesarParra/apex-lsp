@@ -279,6 +279,9 @@ final class Server {
       case TextDocumentDidSaveMessage():
         // Re-indexing on save is handled in a later step.
         break;
+      case WorkspaceDidDeleteFilesMessage():
+        // Orphan removal on delete is handled in a later step.
+        break;
     }
   }
 

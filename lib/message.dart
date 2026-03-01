@@ -727,6 +727,45 @@ final class DidSaveTextDocumentParams {
   Map<String, Object?> toJson() => _$DidSaveTextDocumentParamsToJson(this);
 }
 
+/// LSP `workspace/didDeleteFiles` notification.
+///
+/// Sent when files are deleted in the workspace. The server uses this to
+/// remove stale index entries for the deleted files.
+class WorkspaceDidDeleteFilesMessage
+    extends IncomingNotificationMessageWithParams<DeleteFilesParams> {
+  @override
+  String get method => 'workspace/didDeleteFiles';
+
+  @override
+  final DeleteFilesParams params;
+
+  const WorkspaceDidDeleteFilesMessage(this.params);
+}
+
+@JsonSerializable()
+final class DeleteFilesParams {
+  final List<FileDelete> files;
+
+  const DeleteFilesParams({required this.files});
+
+  factory DeleteFilesParams.fromJson(Map<String, Object?> json) =>
+      _$DeleteFilesParamsFromJson(json);
+
+  Map<String, Object?> toJson() => _$DeleteFilesParamsToJson(this);
+}
+
+@JsonSerializable()
+final class FileDelete {
+  final String uri;
+
+  const FileDelete({required this.uri});
+
+  factory FileDelete.fromJson(Map<String, Object?> json) =>
+      _$FileDeleteFromJson(json);
+
+  Map<String, Object?> toJson() => _$FileDeleteToJson(this);
+}
+
 /// LSP `$/cancelRequest` notification.
 ///
 /// Sent by the client to cancel a previously sent request. The server should
