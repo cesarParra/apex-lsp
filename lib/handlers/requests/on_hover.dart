@@ -1,7 +1,7 @@
 import 'package:apex_lsp/hover/hover_formatter.dart';
 import 'package:apex_lsp/hover/symbol_resolver.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
-import 'package:apex_lsp/indexing/workspace_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/utils/text_utils.dart';
 

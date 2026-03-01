@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:apex_lsp/indexing/declarations.dart';
+import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
-import 'package:apex_lsp/indexing/workspace_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:apex_lsp/utils/platform.dart';
@@ -70,7 +71,9 @@ void main() {
 
       await runIndex();
 
-      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final indexDir = workspaceRoot
+          .childDirectory(indexRootFolderName)
+          .childDirectory(apexIndexFolderName);
       expect(indexDir.existsSync(), isTrue);
 
       // Write a sentinel file to confirm the directory is not wiped.
@@ -86,7 +89,9 @@ void main() {
 
       await runIndex();
 
-      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final indexDir = workspaceRoot
+          .childDirectory(indexRootFolderName)
+          .childDirectory(apexIndexFolderName);
       final jsonFile = indexDir.childFile('Foo.json');
       final firstModified = jsonFile.lastModifiedSync();
 
@@ -101,7 +106,9 @@ void main() {
 
       await runIndex();
 
-      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final indexDir = workspaceRoot
+          .childDirectory(indexRootFolderName)
+          .childDirectory(apexIndexFolderName);
       final jsonFile = indexDir.childFile('Foo.json');
       final firstModified = jsonFile.lastModifiedSync();
 
@@ -122,7 +129,9 @@ void main() {
 
       await runIndex();
 
-      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final indexDir = workspaceRoot
+          .childDirectory(indexRootFolderName)
+          .childDirectory(apexIndexFolderName);
       expect(indexDir.childFile('Foo.json').existsSync(), isTrue);
       expect(indexDir.childFile('Bar.json').existsSync(), isTrue);
 
@@ -147,7 +156,9 @@ void main() {
 
         await runIndex();
 
-        final indexDir = workspaceRoot.childDirectory('.sf-zed');
+        final indexDir = workspaceRoot
+            .childDirectory(indexRootFolderName)
+            .childDirectory(apexIndexFolderName);
         final fooModified = indexDir.childFile('Foo.json').lastModifiedSync();
         final barModified = indexDir.childFile('Bar.json').lastModifiedSync();
 
@@ -232,7 +243,9 @@ void main() {
         equals('Indexing complete'),
       );
 
-      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final indexDir = workspaceRoot
+          .childDirectory(indexRootFolderName)
+          .childDirectory(apexIndexFolderName);
       expect(indexDir.existsSync(), isTrue);
 
       final metadataFile = indexDir.childFile('Foo.json');
@@ -279,7 +292,9 @@ void main() {
           .index(params, token: ProgressToken.string('test-token'))
           .drain<void>();
 
-      final indexDir = workspaceRoot.childDirectory('.sf-zed');
+      final indexDir = workspaceRoot
+          .childDirectory(indexRootFolderName)
+          .childDirectory(apexIndexFolderName);
       expect(indexDir.existsSync(), isTrue);
 
       for (final (fileName, _) in classDefinitions) {

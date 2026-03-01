@@ -11,7 +11,7 @@ import 'package:apex_lsp/gitignore.dart';
 import 'package:apex_lsp/handlers/requests/on_hover.dart';
 import 'package:apex_lsp/handlers/requests/on_initialize.dart';
 import 'package:apex_lsp/indexing/local_indexer.dart';
-import 'package:apex_lsp/indexing/workspace_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/initialization_status.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
@@ -262,14 +262,6 @@ final class Server {
             log: (message) =>
                 logMessage(MessageType.log, '[apex-lsp] $message'),
           );
-
-          final declarations = await _indexRepository!.getDeclarations();
-          await logMessage(
-            MessageType.log,
-            '[apex-lsp] Workspace index loaded: '
-            '${declarations.length} types: '
-            '${declarations.map((d) => d.name.value).toList()}',
-          );
         }
 
       case TextDocumentDidOpenMessage(:final params):
@@ -295,17 +287,11 @@ final class Server {
   ///
   /// - [response]: The client response message.
   Future<void> _handleClientResponse(ClientResponse response) async {
-    switch (response) {
-      case ClientSuccessResponse(:final id, :final result):
-        await logMessage(
-          MessageType.log,
-          '[apex-lsp] Client response to request $id: success (result=$result)',
-        );
-      case ClientErrorResponse(:final id, :final error):
-        await logMessage(
-          MessageType.warning,
-          '[apex-lsp] Client response to request $id: error ${error.code} - ${error.message}',
-        );
+    if (response case ClientErrorResponse(:final id, :final error)) {
+      await logMessage(
+        MessageType.warning,
+        '[apex-lsp] Client request $id failed: ${error.code} - ${error.message}',
+      );
     }
   }
 

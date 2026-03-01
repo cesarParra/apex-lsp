@@ -190,6 +190,11 @@ List<CompletionCandidate> _memberCandidates(
       indexedType.values
           .map((value) => MemberCandidate(value, parentType: indexedType))
           .toList(),
+    IndexedSObject() =>
+      indexedType.fields
+          .where((field) => field.isVisibleAt(cursorOffset))
+          .map((field) => MemberCandidate(field, parentType: indexedType))
+          .toList(),
   };
 }
 
@@ -234,6 +239,7 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
       ),
       IndexedInterface() => (CompletionItemKind.interfaceKind, 'Interface'),
       IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
+      IndexedSObject() => (CompletionItemKind.classKind, 'SObject'),
     };
 
 (CompletionItemKind, String?) _memberKindAndDetail(
@@ -251,6 +257,7 @@ CompletionItem _toCompletionItem(CompletionCandidate candidate) {
   IndexedEnum() => (CompletionItemKind.enumKind, 'Enum'),
   IndexedVariable() ||
   ConstructorDeclaration() => (CompletionItemKind.variable, null),
+  IndexedSObject() => (CompletionItemKind.classKind, 'SObject'),
 };
 
 CompletionItemLabelDetails _methodLabelDetails(MethodDeclaration declaration) {
@@ -323,8 +330,7 @@ Future<CompletionList> onCompletion({
     'indexedTypes=$indexedTypeCount',
   );
 
-  final contextDetector = ContextDetector();
-  final context = await contextDetector.detect(
+  final context = await detectCompletionContext(
     text: text,
     cursorOffset: cursorOffset,
     index: index,

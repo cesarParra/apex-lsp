@@ -447,6 +447,168 @@ sample.{cursor}''');
     });
   });
 
+  group('Workspace Completion with indexed SObjects', () {
+    late TestWorkspace workspace;
+    late LspClient client;
+
+    setUp(() async {
+      workspace = await createTestWorkspace(
+        objectFiles: [
+          (
+            objectName: 'Account',
+            objectMetaXml: '''<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+  <label>Account</label>
+  <pluralLabel>Accounts</pluralLabel>
+</CustomObject>''',
+            fields: [
+              (
+                name: 'Industry__c',
+                xml: '''<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+  <fullName>Industry__c</fullName>
+  <label>Industry</label>
+  <type>Picklist</type>
+</CustomField>''',
+              ),
+              (
+                name: 'AnnualRevenue',
+                xml: '''<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+  <fullName>AnnualRevenue</fullName>
+  <label>Annual Revenue</label>
+  <type>Currency</type>
+</CustomField>''',
+              ),
+            ],
+          ),
+          (
+            objectName: 'Contact',
+            objectMetaXml: '''<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+  <label>Contact</label>
+</CustomObject>''',
+            fields: [],
+          ),
+        ],
+      );
+      client = createLspClient()..start();
+      await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: true,
+      );
+    });
+
+    tearDown(() async {
+      await client.dispose();
+      await deleteTestWorkspace(workspace);
+    });
+
+    test('completes SObject name at top level', () async {
+      final textWithPosition = extractCursorPosition('Acc{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, containsCompletion('Account'));
+    });
+
+    test('prefix filters SObject names', () async {
+      final textWithPosition = extractCursorPosition('Acc{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, doesNotContainCompletion('Contact'));
+    });
+
+    test('SObject completion has classKind and "SObject" detail', () async {
+      final textWithPosition = extractCursorPosition('Acc{cursor}');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWith(
+          label: 'Account',
+          kind: CompletionItemKind.classKind,
+          detail: 'SObject',
+        ),
+      );
+    });
+
+    test('completes SObject fields after dot on typed variable', () async {
+      final textWithPosition = extractCursorPosition('''
+Account acc;
+acc.{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        containsCompletions(['Industry__c', 'AnnualRevenue']),
+      );
+    });
+
+    test('prefix filters SObject fields', () async {
+      final textWithPosition = extractCursorPosition('''
+Account acc;
+acc.Ind{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(completions, containsCompletion('Industry__c'));
+      expect(completions, doesNotContainCompletion('AnnualRevenue'));
+    });
+
+    test('SObject field completions have field kind', () async {
+      final textWithPosition = extractCursorPosition('''
+Account acc;
+acc.{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        completionWithKind('Industry__c', CompletionItemKind.field),
+      );
+    });
+  });
+
   group('Workspace Completion with many indexed types', () {
     late TestWorkspace workspace;
     late LspClient client;

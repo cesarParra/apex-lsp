@@ -142,7 +142,8 @@ List<Declaration> getBodyDeclarations(Declaration? declaration) {
     EnumValueMember() ||
     IndexedVariable() ||
     IndexedInterface() ||
-    IndexedEnum() => const [],
+    IndexedEnum() ||
+    IndexedSObject() => const [],
 
     // Declarations with body
     ConstructorDeclaration(:final body) ||
