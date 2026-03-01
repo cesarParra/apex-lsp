@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:apex_lsp/utils/platform.dart';
@@ -86,6 +87,22 @@ Future<void> _indexInParallel<T>({
   for (var offset = 0; offset < items.length; offset += batchSize) {
     final batch = items.skip(offset).take(batchSize).toList();
     await Future.wait(batch.map(index));
+  }
+}
+
+/// Serializes [entry] to indented JSON and writes it to [outPath], silently
+/// swallowing any error so one bad file never aborts the whole indexing run.
+Future<void> writeIndexEntry({
+  required FileSystem fileSystem,
+  required String outPath,
+  required Map<String, Object?> entry,
+}) async {
+  try {
+    await fileSystem
+        .file(outPath)
+        .writeAsString(const JsonEncoder.withIndent('  ').convert(entry));
+  } catch (_) {
+    // Silently skip entries that fail to write.
   }
 }
 

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:apex_lsp/indexing/sobject_metadata.dart';
 import 'package:apex_lsp/indexing/sobject_xml_parser.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
@@ -101,17 +99,16 @@ Future<void> _indexSingle({
       objectMetadata: metadataWithFields,
     );
 
-    final outPath = fileSystem.path.join(
-      sobjectDir.indexDir.path,
-      '$objectName.json',
+    await writeIndexEntry(
+      fileSystem: fileSystem,
+      outPath: fileSystem.path.join(
+        sobjectDir.indexDir.path,
+        '$objectName.json',
+      ),
+      entry: entry.toJson(),
     );
-    await fileSystem
-        .file(outPath)
-        .writeAsString(
-          const JsonEncoder.withIndent('  ').convert(entry.toJson()),
-        );
   } catch (_) {
-    // Silently skip objects that fail to parse or write.
+    // Silently skip objects that fail to parse.
   }
 }
 

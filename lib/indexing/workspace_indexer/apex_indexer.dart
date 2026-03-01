@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:apex_lsp/indexing/workspace_indexer/apex_index_entry.dart';
@@ -89,17 +88,13 @@ Future<void> _indexSingle({
       typeMirror: typeMirrorJson,
     );
 
-    final outPath = fileSystem.path.join(
-      apexFile.indexDir.path,
-      '$className.json',
+    await writeIndexEntry(
+      fileSystem: fileSystem,
+      outPath: fileSystem.path.join(apexFile.indexDir.path, '$className.json'),
+      entry: entry.toJson(),
     );
-    await fileSystem
-        .file(outPath)
-        .writeAsString(
-          const JsonEncoder.withIndent('  ').convert(entry.toJson()),
-        );
   } catch (_) {
-    // Silently skip files that fail to reflect or write.
+    // Silently skip files that fail to reflect.
   }
 }
 
