@@ -21,8 +21,8 @@ typedef _ApexFile = ({File file, Uri workspaceRoot, Directory indexDir});
 
 /// Re-indexes a single Apex [file] that was just saved.
 ///
-/// Unlike [runApexIndexer], this skips the staleness check — a save event
-/// always means the file has changed — and processes only the one file.
+/// Unlike [runApexIndexer], this skips the staleness check (a save event
+/// always means the file has changed) and processes only the one file.
 Future<void> reindexApexFile({
   required FileSystem fileSystem,
   required LspPlatform platform,

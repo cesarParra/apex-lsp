@@ -30,7 +30,7 @@ Future<T> _pollUntil<T>(
 }
 
 void main() {
-  group('live indexing — textDocument/didSave', () {
+  group('live indexing (textDocument/didSave)', () {
     late TestWorkspace workspace;
     late LspClient client;
 
@@ -100,7 +100,7 @@ w.{cursor}''');
     );
   });
 
-  group('live indexing — workspace/didDeleteFiles', () {
+  group('live indexing (workspace/didDeleteFiles)', () {
     late TestWorkspace workspace;
     late LspClient client;
 

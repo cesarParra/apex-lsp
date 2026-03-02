@@ -61,7 +61,7 @@ void main() {
     });
 
     test('silently ignores didSave with missing params', () async {
-      // Missing params entirely — should be ignored (returns null from parser,
+      // Missing params entirely, should be ignored (returns null from parser,
       // so the stream emits nothing).
       final frame = lspFrame({
         'jsonrpc': '2.0',

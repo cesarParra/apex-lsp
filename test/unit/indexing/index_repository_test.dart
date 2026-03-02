@@ -160,10 +160,10 @@ void main() {
     test(
       'is a no-op when the cache for that root has never been loaded',
       () async {
-        // Do NOT call getDeclarations() — the cache is unpopulated.
+        // Do NOT call getDeclarations() here (the cache is unpopulated).
         final repo = makeRepository();
 
-        // Write a JSON file and upsert — should not throw.
+        // Write a JSON file and upsert, which should not throw.
         apexIndexDir
             .childFile('Widget.json')
             .writeAsStringSync(jsonEncode(_apexJson('Widget')));

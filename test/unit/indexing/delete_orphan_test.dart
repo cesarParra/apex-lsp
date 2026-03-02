@@ -127,7 +127,7 @@ void main() {
 
         // The JSON must still exist (SObject itself was not deleted).
         expect(sobjectIndexDir.childFile('Account.json').existsSync(), isTrue);
-        // And it must no longer be stale — it was re-indexed.
+        // And it must no longer be stale (it was re-indexed).
         final content = sobjectIndexDir
             .childFile('Account.json')
             .readAsStringSync();
@@ -138,7 +138,7 @@ void main() {
     test(
       'is a no-op for .field-meta.xml deletion when the object dir is missing',
       () async {
-        // No object directory on disk — nothing to re-index.
+        // No object directory on disk, so nothing to re-index.
         await deleteOrphanForFile(
           fileSystem: fs,
           platform: platform,

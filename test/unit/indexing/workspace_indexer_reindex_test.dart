@@ -243,7 +243,7 @@ void main() {
         expect(before.map((d) => d.name.value), contains('Foo'));
         expect(before.map((d) => d.name.value), isNot(contains('Bar')));
 
-        // Add a new class file and reindex — without running a full index.
+        // Add a new class file and reindex, without running a full index.
         classesDir
             .childFile('Bar.cls')
             .writeAsStringSync('public class Bar {}');
@@ -298,7 +298,7 @@ void main() {
         expect(before.map((d) => d.name.value), contains('Account'));
         expect(before.map((d) => d.name.value), isNot(contains('Contact')));
 
-        // Add a new SObject and reindex — without running a full index.
+        // Add a new SObject and reindex, without running a full index.
         createObjectDir('Contact');
         await indexer.reindexFile(
           Uri.file(

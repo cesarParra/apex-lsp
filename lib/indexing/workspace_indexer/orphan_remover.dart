@@ -28,8 +28,8 @@ Future<void> deleteOrphanForFile({
       // parent = fields/,  parent.parent = Account/
       final objectDir = deletedFile.parent.parent;
 
-      // The field is gone but the SObject itself still exists — re-index it so
-      // the remaining fields are reflected in the cache.
+      // The field is gone but the SObject itself still exists, so re-index it
+      // so the remaining fields are reflected in the cache.
       if (!await objectDir.exists()) return;
 
       final objectName = fileSystem.path.basename(objectDir.path);

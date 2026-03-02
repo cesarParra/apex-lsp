@@ -74,8 +74,8 @@ final class _IndexCache<T extends IndexedType> {
   /// Reads [jsonFileUri] from disk and inserts or replaces the entry in the
   /// cache for [workspaceRoot].
   ///
-  /// No-op if the cache for [workspaceRoot] has not been loaded yet — the next
-  /// full [load] will pick up the file directly from disk.
+  /// No-op if the cache for [workspaceRoot] has not been loaded yet, because
+  /// the next full [load] will pick up the file directly from disk.
   Future<void> upsert(Uri jsonFileUri, Uri workspaceRoot) async {
     final cache = _store[workspaceRoot];
     if (cache == null) return;
