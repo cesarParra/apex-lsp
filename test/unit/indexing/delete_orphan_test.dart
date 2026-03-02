@@ -50,9 +50,7 @@ void main() {
       await deleteOrphanForFile(
         fileSystem: fs,
         platform: platform,
-        deletedFileUri: Uri.file(
-          '/repo/force-app/main/default/classes/Foo.cls',
-        ),
+        deletedFile: fs.file('/repo/force-app/main/default/classes/Foo.cls'),
         apexIndexDir: apexIndexDir,
         sobjectIndexDir: sobjectIndexDir,
       );
@@ -69,9 +67,7 @@ void main() {
         await deleteOrphanForFile(
           fileSystem: fs,
           platform: platform,
-          deletedFileUri: Uri.file(
-            '/repo/force-app/main/default/classes/Foo.cls',
-          ),
+          deletedFile: fs.file('/repo/force-app/main/default/classes/Foo.cls'),
           apexIndexDir: apexIndexDir,
           sobjectIndexDir: sobjectIndexDir,
         );
@@ -87,7 +83,7 @@ void main() {
       await deleteOrphanForFile(
         fileSystem: fs,
         platform: platform,
-        deletedFileUri: Uri.file(
+        deletedFile: fs.file(
           '/repo/force-app/main/default/objects/Account/Account.object-meta.xml',
         ),
         apexIndexDir: apexIndexDir,
@@ -122,7 +118,7 @@ void main() {
         await deleteOrphanForFile(
           fileSystem: fs,
           platform: platform,
-          deletedFileUri: Uri.file(
+          deletedFile: fs.file(
             '/repo/force-app/main/default/objects/Account/fields/Industry__c.field-meta.xml',
           ),
           apexIndexDir: apexIndexDir,
@@ -146,7 +142,7 @@ void main() {
         await deleteOrphanForFile(
           fileSystem: fs,
           platform: platform,
-          deletedFileUri: Uri.file(
+          deletedFile: fs.file(
             '/repo/force-app/main/default/objects/Ghost/fields/Field__c.field-meta.xml',
           ),
           apexIndexDir: apexIndexDir,
@@ -164,7 +160,7 @@ void main() {
       await deleteOrphanForFile(
         fileSystem: fs,
         platform: platform,
-        deletedFileUri: Uri.file('/repo/README.md'),
+        deletedFile: fs.file('/repo/README.md'),
         apexIndexDir: apexIndexDir,
         sobjectIndexDir: sobjectIndexDir,
       );

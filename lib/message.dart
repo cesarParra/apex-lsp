@@ -486,8 +486,8 @@ final class WorkspaceFolder {
 /// LSP `ClientCapabilities.workspace.fileOperations` sub-object.
 ///
 /// Reports which file-operation notifications the client will send.
-/// Used to verify that the IDE supports `workspace/didDeleteFiles` before
-/// relying on it for index maintenance.
+/// Parsed from the `initialize` request for future use; the server currently
+/// registers file-operation handlers unconditionally.
 @JsonSerializable()
 final class FileOperationsClientCapabilities {
   /// Whether the client supports `workspace/didCreate` notifications.

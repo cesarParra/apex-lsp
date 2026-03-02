@@ -1,48 +1,46 @@
 import 'package:apex_lsp/indexing/workspace_indexer/sobject_indexer.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/utils.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
 /// Handles the index side-effects of a file deletion.
+///
+/// [deletedFile] is the source file that was removed from disk. Its
+/// [MetadataType] determines which index entry to drop or re-index.
 Future<void> deleteOrphanForFile({
   required FileSystem fileSystem,
   required LspPlatform platform,
-  required Uri deletedFileUri,
+  required File deletedFile,
   required Directory apexIndexDir,
   required Directory sobjectIndexDir,
 }) async {
-  final path = deletedFileUri.toFilePath(windows: platform.isWindows);
-  final lowerPath = path.toLowerCase();
+  switch (deletedFile.metadataType) {
+    case ApexClassType():
+      final stem = fileSystem.path.basenameWithoutExtension(deletedFile.path);
+      await _deleteIfExists(apexIndexDir.childFile('$stem.json'));
+    case SObjectType():
+      // The object name equals the basename of the parent directory.
+      // e.g. Account/Account.object-meta.xml → parent = Account/ → "Account"
+      final objectName = fileSystem.path.basename(deletedFile.parent.path);
+      await _deleteIfExists(sobjectIndexDir.childFile('$objectName.json'));
+    case SObjectFieldType():
+      // Path: .../objects/Account/fields/SomeField.field-meta.xml
+      // parent = fields/,  parent.parent = Account/
+      final objectDir = deletedFile.parent.parent;
 
-  if (lowerPath.endsWith('.cls')) {
-    final stem = fileSystem.path.basenameWithoutExtension(path);
-    final jsonFile = apexIndexDir.childFile('$stem.json');
-    await _deleteIfExists(jsonFile);
-  } else if (lowerPath.endsWith('.object-meta.xml')) {
-    final basename = fileSystem.path.basename(path);
-    final objectName = basename.replaceFirst('.object-meta.xml', '');
-    final jsonFile = sobjectIndexDir.childFile('$objectName.json');
-    await _deleteIfExists(jsonFile);
-  } else if (lowerPath.endsWith('.field-meta.xml')) {
-    // Path: .../objects/Account/fields/SomeField.field-meta.xml
-    // parent = fields/,  parent.parent = Account/
-    final fieldsDir = fileSystem.path.dirname(path);
-    final objectDirPath = fileSystem.path.dirname(fieldsDir);
-    final objectDir = fileSystem.directory(objectDirPath);
+      // The field is gone but the SObject itself still exists — re-index it so
+      // the remaining fields are reflected in the cache.
+      if (!await objectDir.exists()) return;
 
-    // The field is gone but the SObject itself still exists — re-index it so
-    // the remaining fields are reflected in the cache.
-    if (!await objectDir.exists()) return;
-
-    final objectName = fileSystem.path.basename(objectDirPath);
-    final objectMetaFile = fileSystem.file(
-      fileSystem.path.join(objectDirPath, '$objectName.object-meta.xml'),
-    );
-    await reindexSObjectFile(
-      fileSystem: fileSystem,
-      platform: platform,
-      file: objectMetaFile,
-      indexDir: sobjectIndexDir,
-    );
+      final objectName = fileSystem.path.basename(objectDir.path);
+      await reindexSObjectFile(
+        fileSystem: fileSystem,
+        platform: platform,
+        file: objectDir.childFile('$objectName.object-meta.xml'),
+        indexDir: sobjectIndexDir,
+      );
+    case UnsupportedType():
+      return;
   }
 }
 

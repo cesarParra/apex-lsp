@@ -373,7 +373,7 @@ void main() {
           )
           .drain<void>();
 
-      return indexer.getIndexLoader();
+      return indexer.getIndexLoader()!;
     }
 
     group('enums', () {

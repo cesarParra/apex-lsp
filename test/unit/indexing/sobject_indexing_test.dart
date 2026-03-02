@@ -115,7 +115,7 @@ void main() {
 
   Future<IndexRepository> indexAndCreateRepository() async {
     await runIndex();
-    return indexer.getIndexLoader();
+    return indexer.getIndexLoader()!;
   }
 
   group('SObject indexer', () {

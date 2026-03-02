@@ -30,14 +30,11 @@ final class WorkspaceIndexer {
   // Workspace roots discovered during initialize.
   List<Uri> _workspaceRootUris = <Uri>[];
 
-  // Package directory URIs per workspace root, populated during index().
-  // Required by reindexFile() to locate the correct index directories.
-  Map<Uri, List<Uri>> _packageDirectoryUrisByRoot = {};
-
   // Single long-lived repository shared across the server session.
   // Patched in place by reindexFile() and deleteOrphanForUri() so that
   // only the affected entry is reloaded rather than the whole index directory.
-  late IndexRepository _indexRepository;
+  // Null before index() has been called.
+  IndexRepository? _indexRepository;
 
   Stream<WorkDoneProgressParams> index(
     InitializedParams params, {
@@ -103,8 +100,9 @@ final class WorkspaceIndexer {
 
     final filePath = fileUri.toFilePath(windows: _platform.isWindows);
     final file = _fileSystem.file(filePath);
+    final metadataType = file.metadataType;
 
-    switch (file.metadataType) {
+    switch (metadataType) {
       case ApexClassType():
         final apexIndexDir = _fileSystem.directory(
           _fileSystem.path.join(
@@ -121,7 +119,7 @@ final class WorkspaceIndexer {
           indexDir: apexIndexDir,
         );
         final stem = _fileSystem.path.basenameWithoutExtension(filePath);
-        await _indexRepository.upsertFromFile(
+        await _indexRepository?.upsertFromFile(
           Uri.file(_fileSystem.path.join(apexIndexDir.path, '$stem.json')),
           root,
         );
@@ -139,11 +137,14 @@ final class WorkspaceIndexer {
           file: file,
           indexDir: sobjectIndexDir,
         );
-        final objectDir = file.metadataType is SObjectType
-            ? file.parent
-            : file.parent.parent;
+        // For .object-meta.xml the object dir is the file's parent;
+        // for .field-meta.xml it is one level higher (fields/ is a sibling).
+        final objectDir = switch (metadataType) {
+          SObjectType() => file.parent,
+          _ => file.parent.parent,
+        };
         final objectName = _fileSystem.path.basename(objectDir.path);
-        await _indexRepository.upsertSObjectFromFile(
+        await _indexRepository?.upsertSObjectFromFile(
           Uri.file(
             _fileSystem.path.join(sobjectIndexDir.path, '$objectName.json'),
           ),
@@ -173,49 +174,57 @@ final class WorkspaceIndexer {
       ),
     );
 
-    final path = fileUri.toFilePath(windows: _platform.isWindows);
-    final lowerPath = path.toLowerCase();
+    final filePath = fileUri.toFilePath(windows: _platform.isWindows);
+    final deletedFile = _fileSystem.file(filePath);
+    final metadataType = deletedFile.metadataType;
 
     await deleteOrphanForFile(
       fileSystem: _fileSystem,
       platform: _platform,
-      deletedFileUri: fileUri,
+      deletedFile: deletedFile,
       apexIndexDir: apexIndexDir,
       sobjectIndexDir: sobjectIndexDir,
     );
 
-    if (lowerPath.endsWith('.cls')) {
-      final typeName = _fileSystem.path.basenameWithoutExtension(path);
-      _indexRepository.evict(typeName, root);
-    } else if (lowerPath.endsWith('.object-meta.xml')) {
-      final basename = _fileSystem.path.basename(path);
-      final objectName = basename.replaceFirst('.object-meta.xml', '');
-      _indexRepository.evictSObject(objectName, root);
-    } else if (lowerPath.endsWith('.field-meta.xml')) {
-      // The orphan remover re-indexed the parent SObject; patch the cache.
-      final fieldsDir = _fileSystem.path.dirname(path);
-      final objectDirPath = _fileSystem.path.dirname(fieldsDir);
-      final objectName = _fileSystem.path.basename(objectDirPath);
-      await _indexRepository.upsertSObjectFromFile(
-        Uri.file(
-          _fileSystem.path.join(sobjectIndexDir.path, '$objectName.json'),
-        ),
-        root,
-      );
+    switch (metadataType) {
+      case ApexClassType():
+        final typeName = _fileSystem.path.basenameWithoutExtension(filePath);
+        _indexRepository?.evict(typeName, root);
+      case SObjectType():
+        final objectName = _fileSystem.path.basename(deletedFile.parent.path);
+        _indexRepository?.evictSObject(objectName, root);
+      case SObjectFieldType():
+        // The orphan remover re-indexed the parent SObject; patch the cache.
+        final objectName = _fileSystem.path.basename(
+          deletedFile.parent.parent.path,
+        );
+        await _indexRepository?.upsertSObjectFromFile(
+          Uri.file(
+            _fileSystem.path.join(sobjectIndexDir.path, '$objectName.json'),
+          ),
+          root,
+        );
+      case UnsupportedType():
+        return;
     }
   }
 
   /// Returns the workspace root that [fileUri] belongs to, or `null` if it
   /// does not belong to any known root.
-  Uri? _workspaceRootFor(Uri fileUri) => _workspaceRootUris
-      .where((root) => fileUri.path.startsWith(root.path))
-      .firstOrNull;
-
-  /// Returns the long-lived [IndexRepository] for this session.
   ///
-  /// The repository is created once during [index]. Callers should not invoke
-  /// this before [index] has been called.
-  IndexRepository getIndexLoader() => _indexRepository;
+  /// The root path is always compared with a trailing slash to prevent a root
+  /// like `/repo` from matching a sibling path like `/repo-extra/foo.cls`.
+  Uri? _workspaceRootFor(Uri fileUri) {
+    final filePath = fileUri.path;
+    return _workspaceRootUris.where((root) {
+      final rootPath = root.path.endsWith('/') ? root.path : '${root.path}/';
+      return filePath.startsWith(rootPath);
+    }).firstOrNull;
+  }
+
+  /// Returns the long-lived [IndexRepository] for this session, or `null` if
+  /// [index] has not yet been called.
+  IndexRepository? getIndexLoader() => _indexRepository;
 
   Stream<WorkDoneProgressParams> _indexInBackground({
     required List<Uri> workspaceRoots,
@@ -223,7 +232,6 @@ final class WorkspaceIndexer {
     required ProgressToken token,
   }) async* {
     try {
-      _packageDirectoryUrisByRoot = {};
       for (final root in workspaceRoots) {
         final rootPath = root.toFilePath(windows: _platform.isWindows);
 
@@ -231,8 +239,6 @@ final class WorkspaceIndexer {
           final pkgPath = pkgUri.toFilePath(windows: _platform.isWindows);
           return pkgPath.startsWith(rootPath);
         }).toList();
-
-        _packageDirectoryUrisByRoot[root] = packageDirsForRoot;
 
         await _indexWorkspace(
           workspaceRoot: root,

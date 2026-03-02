@@ -206,6 +206,26 @@ void main() {
 
       expect(jsonFile.lastModifiedSync(), equals(firstModified));
     });
+
+    test(
+      'is a no-op for a file whose path is a sibling prefix of a workspace root',
+      () async {
+        classesDir
+            .childFile('Foo.cls')
+            .writeAsStringSync('public class Foo {}');
+        await runIndex();
+
+        final jsonFile = apexIndexDir().childFile('Foo.json');
+        final firstModified = jsonFile.lastModifiedSync();
+
+        // /repo-extra starts with /repo but is NOT inside the /repo workspace.
+        await indexer.reindexFile(
+          Uri.file('/repo-extra/force-app/main/default/classes/Foo.cls'),
+        );
+
+        expect(jsonFile.lastModifiedSync(), equals(firstModified));
+      },
+    );
   });
 
   group('WorkspaceIndexer in-memory cache update on reindexFile', () {
@@ -218,7 +238,7 @@ void main() {
         await runIndex();
 
         // Prime the cache by calling getDeclarations().
-        final repo = indexer.getIndexLoader();
+        final repo = indexer.getIndexLoader()!;
         final before = await repo.getDeclarations();
         expect(before.map((d) => d.name.value), contains('Foo'));
         expect(before.map((d) => d.name.value), isNot(contains('Bar')));
@@ -249,7 +269,7 @@ void main() {
             .writeAsStringSync('public class Bar {}');
         await runIndex();
 
-        final repo = indexer.getIndexLoader();
+        final repo = indexer.getIndexLoader()!;
         final before = await repo.getDeclarations();
         expect(before.map((d) => d.name.value), contains('Foo'));
         expect(before.map((d) => d.name.value), contains('Bar'));
@@ -273,7 +293,7 @@ void main() {
         createObjectDir('Account');
         await runIndex();
 
-        final repo = indexer.getIndexLoader();
+        final repo = indexer.getIndexLoader()!;
         final before = await repo.getDeclarations();
         expect(before.map((d) => d.name.value), contains('Account'));
         expect(before.map((d) => d.name.value), isNot(contains('Contact')));
@@ -299,7 +319,7 @@ void main() {
         createObjectDir('Contact');
         await runIndex();
 
-        final repo = indexer.getIndexLoader();
+        final repo = indexer.getIndexLoader()!;
         final before = await repo.getDeclarations();
         expect(before.map((d) => d.name.value), contains('Account'));
         expect(before.map((d) => d.name.value), contains('Contact'));
@@ -327,7 +347,7 @@ void main() {
         createObjectDir('Account');
         await runIndex();
 
-        final repo = indexer.getIndexLoader();
+        final repo = indexer.getIndexLoader()!;
         final before = await repo.getDeclarations();
         final accountBefore = before.whereType<IndexedSObject>().firstWhere(
           (d) => d.name.value == 'Account',
@@ -367,7 +387,7 @@ void main() {
         createObjectDir('Account', fields: {'Industry__c': _industryFieldXml});
         await runIndex();
 
-        final repo = indexer.getIndexLoader();
+        final repo = indexer.getIndexLoader()!;
         final before = await repo.getDeclarations();
         final accountBefore = before.whereType<IndexedSObject>().firstWhere(
           (d) => d.name.value == 'Account',
@@ -400,6 +420,4 @@ void main() {
       },
     );
   });
-
-  group('WorkspaceIndexer.deleteOrphanForUri', () {});
 }
