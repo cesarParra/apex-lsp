@@ -254,16 +254,15 @@ final class Server {
           await for (final value in _workspaceIndexer.index(
             params,
             token: token,
-          )) {
-            _output.progress(params: value);
-          }
-
-          _indexRepository = _workspaceIndexer.getIndexLoader(
             onError: (path, error) => logMessage(
               MessageType.error,
               '[apex-lsp] ERROR reading index file $path: $error',
             ),
-          );
+          )) {
+            _output.progress(params: value);
+          }
+
+          _indexRepository = _workspaceIndexer.getIndexLoader();
         }
 
       case TextDocumentDidOpenMessage(:final params):
@@ -389,32 +388,20 @@ final class Server {
     await _output.sendResponse(id: id, result: result?.toJson());
   }
 
-  /// Re-indexes [fileUri] on disk then replaces the in-memory index so the
+  /// Re-indexes [fileUri] on disk and patches the in-memory cache so the
   /// next completion request reflects the saved changes.
   Future<void> _reindexAndRefresh(Uri fileUri) async {
     await _workspaceIndexer.reindexFile(fileUri);
-    _indexRepository = _workspaceIndexer.getIndexLoader(
-      onError: (path, error) => logMessage(
-        MessageType.error,
-        '[apex-lsp] ERROR reading index file $path: $error',
-      ),
-    );
   }
 
-  /// Removes or re-indexes the cached entries for each deleted [files], then
-  /// replaces the in-memory index so completions no longer include stale types.
+  /// Removes or re-indexes the cached entries for each deleted [files] and
+  /// patches the in-memory cache so completions no longer include stale types.
   Future<void> _deleteOrphansAndRefresh(List<FileDelete> files) async {
     await Future.wait([
       for (final file in files)
         if (Uri.tryParse(file.uri) case final uri?)
           _workspaceIndexer.deleteOrphanForUri(uri),
     ]);
-    _indexRepository = _workspaceIndexer.getIndexLoader(
-      onError: (path, error) => logMessage(
-        MessageType.error,
-        '[apex-lsp] ERROR reading index file $path: $error',
-      ),
-    );
   }
 
   Future<void> _ensureGitignoreUpdated(InitializedParams params) async {

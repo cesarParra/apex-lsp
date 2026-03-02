@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
@@ -206,4 +207,199 @@ void main() {
       expect(jsonFile.lastModifiedSync(), equals(firstModified));
     });
   });
+
+  group('WorkspaceIndexer in-memory cache update on reindexFile', () {
+    test(
+      'getIndexLoader reflects a new class immediately after reindexFile without a full reload',
+      () async {
+        classesDir
+            .childFile('Foo.cls')
+            .writeAsStringSync('public class Foo {}');
+        await runIndex();
+
+        // Prime the cache by calling getDeclarations().
+        final repo = indexer.getIndexLoader();
+        final before = await repo.getDeclarations();
+        expect(before.map((d) => d.name.value), contains('Foo'));
+        expect(before.map((d) => d.name.value), isNot(contains('Bar')));
+
+        // Add a new class file and reindex — without running a full index.
+        classesDir
+            .childFile('Bar.cls')
+            .writeAsStringSync('public class Bar {}');
+        await indexer.reindexFile(
+          Uri.file('/repo/force-app/main/default/classes/Bar.cls'),
+        );
+
+        // The same repository instance must now include Bar.
+        final after = await repo.getDeclarations();
+        expect(after.map((d) => d.name.value), contains('Bar'));
+        expect(after.map((d) => d.name.value), contains('Foo'));
+      },
+    );
+
+    test(
+      'getIndexLoader reflects the removal of a class immediately after deleteOrphanForUri',
+      () async {
+        classesDir
+            .childFile('Foo.cls')
+            .writeAsStringSync('public class Foo {}');
+        classesDir
+            .childFile('Bar.cls')
+            .writeAsStringSync('public class Bar {}');
+        await runIndex();
+
+        final repo = indexer.getIndexLoader();
+        final before = await repo.getDeclarations();
+        expect(before.map((d) => d.name.value), contains('Foo'));
+        expect(before.map((d) => d.name.value), contains('Bar'));
+
+        // Delete Foo.cls from disk and notify the indexer.
+        final fooFile = classesDir.childFile('Foo.cls');
+        await fooFile.delete();
+        await indexer.deleteOrphanForUri(
+          Uri.file('/repo/force-app/main/default/classes/Foo.cls'),
+        );
+
+        final after = await repo.getDeclarations();
+        expect(after.map((d) => d.name.value), isNot(contains('Foo')));
+        expect(after.map((d) => d.name.value), contains('Bar'));
+      },
+    );
+
+    test(
+      'getIndexLoader reflects a new SObject immediately after reindexFile without a full reload',
+      () async {
+        createObjectDir('Account');
+        await runIndex();
+
+        final repo = indexer.getIndexLoader();
+        final before = await repo.getDeclarations();
+        expect(before.map((d) => d.name.value), contains('Account'));
+        expect(before.map((d) => d.name.value), isNot(contains('Contact')));
+
+        // Add a new SObject and reindex — without running a full index.
+        createObjectDir('Contact');
+        await indexer.reindexFile(
+          Uri.file(
+            '/repo/force-app/main/default/objects/Contact/Contact.object-meta.xml',
+          ),
+        );
+
+        final after = await repo.getDeclarations();
+        expect(after.map((d) => d.name.value), contains('Contact'));
+        expect(after.map((d) => d.name.value), contains('Account'));
+      },
+    );
+
+    test(
+      'getIndexLoader reflects the removal of an SObject immediately after deleteOrphanForUri',
+      () async {
+        createObjectDir('Account');
+        createObjectDir('Contact');
+        await runIndex();
+
+        final repo = indexer.getIndexLoader();
+        final before = await repo.getDeclarations();
+        expect(before.map((d) => d.name.value), contains('Account'));
+        expect(before.map((d) => d.name.value), contains('Contact'));
+
+        // Delete Account's object-meta.xml and notify the indexer.
+        objectsDir
+            .childDirectory('Account')
+            .childFile('Account.object-meta.xml')
+            .deleteSync();
+        await indexer.deleteOrphanForUri(
+          Uri.file(
+            '/repo/force-app/main/default/objects/Account/Account.object-meta.xml',
+          ),
+        );
+
+        final after = await repo.getDeclarations();
+        expect(after.map((d) => d.name.value), isNot(contains('Account')));
+        expect(after.map((d) => d.name.value), contains('Contact'));
+      },
+    );
+
+    test(
+      'getIndexLoader reflects updated SObject fields immediately after a field-meta.xml is reindexed',
+      () async {
+        createObjectDir('Account');
+        await runIndex();
+
+        final repo = indexer.getIndexLoader();
+        final before = await repo.getDeclarations();
+        final accountBefore = before.whereType<IndexedSObject>().firstWhere(
+          (d) => d.name.value == 'Account',
+        );
+        expect(
+          accountBefore.fields.map((f) => f.name.value),
+          isNot(contains('Industry__c')),
+        );
+
+        // Add a field file and reindex.
+        final fieldsDir =
+            objectsDir.childDirectory('Account').childDirectory('fields')
+              ..createSync();
+        fieldsDir
+            .childFile('Industry__c.field-meta.xml')
+            .writeAsStringSync(_industryFieldXml);
+        await indexer.reindexFile(
+          Uri.file(
+            '/repo/force-app/main/default/objects/Account/fields/Industry__c.field-meta.xml',
+          ),
+        );
+
+        final after = await repo.getDeclarations();
+        final accountAfter = after.whereType<IndexedSObject>().firstWhere(
+          (d) => d.name.value == 'Account',
+        );
+        expect(
+          accountAfter.fields.map((f) => f.name.value),
+          contains('Industry__c'),
+        );
+      },
+    );
+
+    test(
+      'getIndexLoader reflects removed field immediately after field-meta.xml deleteOrphanForUri',
+      () async {
+        createObjectDir('Account', fields: {'Industry__c': _industryFieldXml});
+        await runIndex();
+
+        final repo = indexer.getIndexLoader();
+        final before = await repo.getDeclarations();
+        final accountBefore = before.whereType<IndexedSObject>().firstWhere(
+          (d) => d.name.value == 'Account',
+        );
+        expect(
+          accountBefore.fields.map((f) => f.name.value),
+          contains('Industry__c'),
+        );
+
+        // Delete the field file from disk and notify the indexer.
+        objectsDir
+            .childDirectory('Account')
+            .childDirectory('fields')
+            .childFile('Industry__c.field-meta.xml')
+            .deleteSync();
+        await indexer.deleteOrphanForUri(
+          Uri.file(
+            '/repo/force-app/main/default/objects/Account/fields/Industry__c.field-meta.xml',
+          ),
+        );
+
+        final after = await repo.getDeclarations();
+        final accountAfter = after.whereType<IndexedSObject>().firstWhere(
+          (d) => d.name.value == 'Account',
+        );
+        expect(
+          accountAfter.fields.map((f) => f.name.value),
+          isNot(contains('Industry__c')),
+        );
+      },
+    );
+  });
+
+  group('WorkspaceIndexer.deleteOrphanForUri', () {});
 }

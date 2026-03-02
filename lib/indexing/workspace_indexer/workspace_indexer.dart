@@ -34,9 +34,15 @@ final class WorkspaceIndexer {
   // Required by reindexFile() to locate the correct index directories.
   Map<Uri, List<Uri>> _packageDirectoryUrisByRoot = {};
 
+  // Single long-lived repository shared across the server session.
+  // Patched in place by reindexFile() and deleteOrphanForUri() so that
+  // only the affected entry is reloaded rather than the whole index directory.
+  late IndexRepository _indexRepository;
+
   Stream<WorkDoneProgressParams> index(
     InitializedParams params, {
     required ProgressToken token,
+    IndexReadErrorLog? onError,
   }) async* {
     final folders = params.workspaceFolders;
     if (folders == null || folders.isEmpty) return;
@@ -58,6 +64,12 @@ final class WorkspaceIndexer {
     }
 
     _workspaceRootUris = uris;
+    _indexRepository = IndexRepository(
+      fileSystem: _fileSystem,
+      platform: _platform,
+      workspaceRootUris: _workspaceRootUris,
+      onError: onError,
+    );
 
     // Load SFDX project configs (if present) and compute package directory roots.
     final packageDirectoryUris = await _sfdxWorkspaceLocator
@@ -79,7 +91,9 @@ final class WorkspaceIndexer {
     );
   }
 
-  /// Re-indexes the single file at [fileUri] using the appropriate indexer.
+  /// Re-indexes the single file at [fileUri] using the appropriate indexer,
+  /// then patches the in-memory cache so only the one affected entry is
+  /// reloaded.
   Future<void> reindexFile(Uri fileUri) async {
     final root = _workspaceRootFor(fileUri);
     if (root == null) return;
@@ -106,6 +120,11 @@ final class WorkspaceIndexer {
           file: file,
           indexDir: apexIndexDir,
         );
+        final stem = _fileSystem.path.basenameWithoutExtension(filePath);
+        await _indexRepository.upsertFromFile(
+          Uri.file(_fileSystem.path.join(apexIndexDir.path, '$stem.json')),
+          root,
+        );
       case SObjectType() || SObjectFieldType():
         final sobjectIndexDir = _fileSystem.directory(
           _fileSystem.path.join(
@@ -120,13 +139,24 @@ final class WorkspaceIndexer {
           file: file,
           indexDir: sobjectIndexDir,
         );
+        final objectDir = file.metadataType is SObjectType
+            ? file.parent
+            : file.parent.parent;
+        final objectName = _fileSystem.path.basename(objectDir.path);
+        await _indexRepository.upsertSObjectFromFile(
+          Uri.file(
+            _fileSystem.path.join(sobjectIndexDir.path, '$objectName.json'),
+          ),
+          root,
+        );
       default:
         return;
     }
   }
 
   /// Removes or re-indexes the cached entry for a file that has been deleted
-  /// from disk.
+  /// from disk, then patches the in-memory cache so only the affected entry
+  /// is evicted.
   Future<void> deleteOrphanForUri(Uri fileUri) async {
     final root = _workspaceRootFor(fileUri);
     if (root == null) return;
@@ -143,6 +173,9 @@ final class WorkspaceIndexer {
       ),
     );
 
+    final path = fileUri.toFilePath(windows: _platform.isWindows);
+    final lowerPath = path.toLowerCase();
+
     await deleteOrphanForFile(
       fileSystem: _fileSystem,
       platform: _platform,
@@ -150,6 +183,26 @@ final class WorkspaceIndexer {
       apexIndexDir: apexIndexDir,
       sobjectIndexDir: sobjectIndexDir,
     );
+
+    if (lowerPath.endsWith('.cls')) {
+      final typeName = _fileSystem.path.basenameWithoutExtension(path);
+      _indexRepository.evict(typeName, root);
+    } else if (lowerPath.endsWith('.object-meta.xml')) {
+      final basename = _fileSystem.path.basename(path);
+      final objectName = basename.replaceFirst('.object-meta.xml', '');
+      _indexRepository.evictSObject(objectName, root);
+    } else if (lowerPath.endsWith('.field-meta.xml')) {
+      // The orphan remover re-indexed the parent SObject; patch the cache.
+      final fieldsDir = _fileSystem.path.dirname(path);
+      final objectDirPath = _fileSystem.path.dirname(fieldsDir);
+      final objectName = _fileSystem.path.basename(objectDirPath);
+      await _indexRepository.upsertSObjectFromFile(
+        Uri.file(
+          _fileSystem.path.join(sobjectIndexDir.path, '$objectName.json'),
+        ),
+        root,
+      );
+    }
   }
 
   /// Returns the workspace root that [fileUri] belongs to, or `null` if it
@@ -158,14 +211,11 @@ final class WorkspaceIndexer {
       .where((root) => fileUri.path.startsWith(root.path))
       .firstOrNull;
 
-  IndexRepository getIndexLoader({IndexReadErrorLog? onError}) {
-    return IndexRepository(
-      fileSystem: _fileSystem,
-      platform: _platform,
-      workspaceRootUris: _workspaceRootUris,
-      onError: onError,
-    );
-  }
+  /// Returns the long-lived [IndexRepository] for this session.
+  ///
+  /// The repository is created once during [index]. Callers should not invoke
+  /// this before [index] has been called.
+  IndexRepository getIndexLoader() => _indexRepository;
 
   Stream<WorkDoneProgressParams> _indexInBackground({
     required List<Uri> workspaceRoots,
