@@ -3,18 +3,12 @@ import 'dart:convert';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/index_repository.dart';
-import 'package:apex_lsp/utils/platform.dart';
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:test/test.dart';
 
-final class _FakePlatform implements LspPlatform {
-  @override
-  final bool isWindows = false;
-
-  @override
-  final String pathSeparator = '/';
-}
+import '../../support/fake_platform.dart';
 
 /// Minimal valid ApexIndexEntry JSON for a class named [className].
 Map<String, Object?> _apexJson(String className) => {
@@ -64,7 +58,7 @@ Map<String, Object?> _sobjectJson(
 
 void main() {
   late FileSystem fs;
-  late _FakePlatform platform;
+  late FakeLspPlatform platform;
   late Directory workspaceRoot;
   late Uri workspaceUri;
   late Directory apexIndexDir;
@@ -72,7 +66,7 @@ void main() {
 
   setUp(() {
     fs = MemoryFileSystem();
-    platform = _FakePlatform();
+    platform = FakeLspPlatform();
     workspaceRoot = fs.directory('/repo')..createSync();
     workspaceUri = Uri.directory(workspaceRoot.path);
     apexIndexDir = fs.directory(

@@ -5,18 +5,11 @@ import 'package:apex_lsp/indexing/index_paths.dart';
 import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/message.dart';
-import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:test/test.dart';
 
-final class FakeLspPlatform implements LspPlatform {
-  @override
-  final bool isWindows = false;
-
-  @override
-  final String pathSeparator = '/';
-}
+import '../../support/fake_platform.dart';
 
 const _accountObjectXml = '''
 <?xml version="1.0" encoding="UTF-8"?>

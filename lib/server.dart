@@ -388,14 +388,10 @@ final class Server {
     await _output.sendResponse(id: id, result: result?.toJson());
   }
 
-  /// Re-indexes [fileUri] on disk and patches the in-memory cache so the
-  /// next completion request reflects the saved changes.
   Future<void> _reindexAndRefresh(Uri fileUri) async {
     await _workspaceIndexer.reindexFile(fileUri);
   }
 
-  /// Removes or re-indexes the cached entries for each deleted [files] and
-  /// patches the in-memory cache so completions no longer include stale types.
   Future<void> _deleteOrphansAndRefresh(List<FileDelete> files) async {
     await Future.wait([
       for (final file in files)

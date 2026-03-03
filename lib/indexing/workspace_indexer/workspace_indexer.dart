@@ -31,9 +31,6 @@ final class WorkspaceIndexer {
   List<Uri> _workspaceRootUris = <Uri>[];
 
   // Single long-lived repository shared across the server session.
-  // Patched in place by reindexFile() and deleteOrphanForUri() so that
-  // only the affected entry is reloaded rather than the whole index directory.
-  // Null before index() has been called.
   IndexRepository? _indexRepository;
 
   Stream<WorkDoneProgressParams> index(
