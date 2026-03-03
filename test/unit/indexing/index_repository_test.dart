@@ -6,45 +6,362 @@ import 'package:apex_lsp/indexing/sfdx_workspace_locator.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
-import 'package:apex_lsp/utils/platform.dart';
+
 import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:test/test.dart';
 
-final class FakeLspPlatform implements LspPlatform {
-  FakeLspPlatform({this.isWindows = false, this.pathSeparator = '/'});
+import '../../support/fake_platform.dart';
 
-  @override
-  final bool isWindows;
+/// Minimal valid ApexIndexEntry JSON for a class named [className].
+Map<String, Object?> _apexJson(String className) => {
+  'schemaVersion': 1,
+  'className': className,
+  'source': {
+    'uri': 'file:///repo/$className.cls',
+    'relativePath': '$className.cls',
+  },
+  'typeMirror': {
+    'type_name': 'class',
+    'name': className,
+    'annotations': <Object?>[],
+    'modifiers': <Object?>[],
+    'memberModifiers': <Object?>[],
+    'interfaces': <Object?>[],
+    'classes': <Object?>[],
+    'enums': <Object?>[],
+    'interfaces_': <Object?>[],
+    'fields': <Object?>[],
+    'properties': <Object?>[],
+    'methods': <Object?>[],
+    'constructors': <Object?>[],
+  },
+};
 
-  @override
-  final String pathSeparator;
-}
+/// Minimal valid SObjectIndexEntry JSON for an object named [objectName].
+Map<String, Object?> _sobjectJson(
+  String objectName, {
+  List<Map<String, Object?>> fields = const [],
+}) => {
+  'schemaVersion': 1,
+  'objectApiName': objectName,
+  'source': {
+    'objectMetaUri':
+        'file:///repo/objects/$objectName/$objectName.object-meta.xml',
+    'relativePath': 'objects/$objectName',
+  },
+  'objectMetadata': {
+    'apiName': objectName,
+    'label': objectName,
+    'pluralLabel': '${objectName}s',
+    'description': null,
+    'fields': fields,
+  },
+};
 
 void main() {
-  group('incremental indexing', () {
+  group('cache lifecycle', () {
     late FileSystem fs;
     late FakeLspPlatform platform;
-    late WorkspaceIndexer indexer;
     late Directory workspaceRoot;
     late Uri workspaceUri;
-    late Directory classesDir;
+    late Directory apexIndexDir;
+    late Directory sobjectIndexDir;
 
     setUp(() {
       fs = MemoryFileSystem();
       platform = FakeLspPlatform();
-      indexer = WorkspaceIndexer(
-        sfdxWorkspaceLocator: SfdxWorkspaceLocator(
-          fileSystem: fs,
-          platform: platform,
-        ),
-        fileSystem: fs,
-        platform: platform,
-      );
-
       workspaceRoot = fs.directory('/repo')..createSync();
       workspaceUri = Uri.directory(workspaceRoot.path);
+      apexIndexDir = fs.directory(
+        fs.path.join(
+          workspaceRoot.path,
+          indexRootFolderName,
+          apexIndexFolderName,
+        ),
+      )..createSync(recursive: true);
+      sobjectIndexDir = fs.directory(
+        fs.path.join(
+          workspaceRoot.path,
+          indexRootFolderName,
+          sobjectIndexFolderName,
+        ),
+      )..createSync(recursive: true);
+    });
 
+    IndexRepository makeRepository() => IndexRepository(
+      fileSystem: fs,
+      platform: platform,
+      workspaceRootUris: [workspaceUri],
+    );
+
+    group('upsertFromFile', () {
+      test('inserts a new entry when the cache is already populated', () async {
+        final repo = makeRepository();
+        final before = await repo.getDeclarations();
+        expect(before, isEmpty);
+
+        apexIndexDir
+            .childFile('Widget.json')
+            .writeAsStringSync(jsonEncode(_apexJson('Widget')));
+        await repo.upsertFromFile(
+          Uri.file(apexIndexDir.childFile('Widget.json').path),
+          workspaceUri,
+        );
+
+        final after = await repo.getDeclarations();
+        expect(after.map((d) => d.name.value), contains('Widget'));
+      });
+
+      test('replaces an existing entry with updated content', () async {
+        apexIndexDir
+            .childFile('Widget.json')
+            .writeAsStringSync(jsonEncode(_apexJson('Widget')));
+
+        final repo = makeRepository();
+        final before = await repo.getDeclarations();
+        expect(
+          before.whereType<IndexedClass>().map((d) => d.name.value),
+          contains('Widget'),
+        );
+        expect(before.whereType<IndexedEnum>(), isEmpty);
+
+        final updatedJson = _apexJson('Widget');
+        (updatedJson['typeMirror'] as Map<String, Object?>)['type_name'] =
+            'enum';
+        (updatedJson['typeMirror'] as Map<String, Object?>)['values'] =
+            <Object?>[];
+        apexIndexDir
+            .childFile('Widget.json')
+            .writeAsStringSync(jsonEncode(updatedJson));
+
+        await repo.upsertFromFile(
+          Uri.file(apexIndexDir.childFile('Widget.json').path),
+          workspaceUri,
+        );
+
+        final after = await repo.getDeclarations();
+        expect(
+          after.whereType<IndexedClass>().map((d) => d.name.value),
+          isNot(contains('Widget')),
+        );
+        expect(
+          after.whereType<IndexedEnum>().map((d) => d.name.value),
+          contains('Widget'),
+        );
+      });
+
+      test(
+        'is a no-op when the cache for that root has never been loaded',
+        () async {
+          final repo = makeRepository();
+
+          apexIndexDir
+              .childFile('Widget.json')
+              .writeAsStringSync(jsonEncode(_apexJson('Widget')));
+          await expectLater(
+            repo.upsertFromFile(
+              Uri.file(apexIndexDir.childFile('Widget.json').path),
+              workspaceUri,
+            ),
+            completes,
+          );
+
+          final declarations = await repo.getDeclarations();
+          expect(declarations.map((d) => d.name.value), contains('Widget'));
+        },
+      );
+    });
+
+    group('evict', () {
+      test('removes an existing entry from the cache', () async {
+        apexIndexDir
+            .childFile('Widget.json')
+            .writeAsStringSync(jsonEncode(_apexJson('Widget')));
+
+        final repo = makeRepository();
+        final before = await repo.getDeclarations();
+        expect(before.map((d) => d.name.value), contains('Widget'));
+
+        repo.evict('Widget', workspaceUri);
+
+        final after = await repo.getDeclarations();
+        expect(after.map((d) => d.name.value), isNot(contains('Widget')));
+      });
+
+      test('is a no-op when the entry does not exist', () async {
+        final repo = makeRepository();
+        await repo.getDeclarations();
+
+        expect(() => repo.evict('NonExistent', workspaceUri), returnsNormally);
+      });
+
+      test(
+        'is a no-op when the cache for that root has never been loaded',
+        () async {
+          final repo = makeRepository();
+
+          expect(() => repo.evict('Widget', workspaceUri), returnsNormally);
+        },
+      );
+    });
+
+    group('upsertSObjectFromFile', () {
+      test(
+        'inserts a new SObject entry when the cache is already populated',
+        () async {
+          final repo = makeRepository();
+          final before = await repo.getDeclarations();
+          expect(before, isEmpty);
+
+          sobjectIndexDir
+              .childFile('Account.json')
+              .writeAsStringSync(jsonEncode(_sobjectJson('Account')));
+          await repo.upsertSObjectFromFile(
+            Uri.file(sobjectIndexDir.childFile('Account.json').path),
+            workspaceUri,
+          );
+
+          final after = await repo.getDeclarations();
+          expect(
+            after.whereType<IndexedSObject>().map((d) => d.name.value),
+            contains('Account'),
+          );
+        },
+      );
+
+      test('replaces an existing SObject entry with updated content', () async {
+        sobjectIndexDir
+            .childFile('Account.json')
+            .writeAsStringSync(jsonEncode(_sobjectJson('Account')));
+
+        final repo = makeRepository();
+        final before = await repo.getDeclarations();
+        final account = before.whereType<IndexedSObject>().firstWhere(
+          (d) => d.name.value == 'Account',
+        );
+        expect(account.fields, isEmpty);
+
+        sobjectIndexDir
+            .childFile('Account.json')
+            .writeAsStringSync(
+              jsonEncode(
+                _sobjectJson(
+                  'Account',
+                  fields: [
+                    {
+                      'apiName': 'Industry__c',
+                      'label': 'Industry',
+                      'type': 'Picklist',
+                      'description': null,
+                    },
+                  ],
+                ),
+              ),
+            );
+        await repo.upsertSObjectFromFile(
+          Uri.file(sobjectIndexDir.childFile('Account.json').path),
+          workspaceUri,
+        );
+
+        final after = await repo.getDeclarations();
+        final updated = after.whereType<IndexedSObject>().firstWhere(
+          (d) => d.name.value == 'Account',
+        );
+        expect(
+          updated.fields.map((f) => f.name.value),
+          contains('Industry__c'),
+        );
+      });
+
+      test(
+        'is a no-op when the cache for that root has never been loaded',
+        () async {
+          final repo = makeRepository();
+
+          sobjectIndexDir
+              .childFile('Account.json')
+              .writeAsStringSync(jsonEncode(_sobjectJson('Account')));
+          await expectLater(
+            repo.upsertSObjectFromFile(
+              Uri.file(sobjectIndexDir.childFile('Account.json').path),
+              workspaceUri,
+            ),
+            completes,
+          );
+
+          final declarations = await repo.getDeclarations();
+          expect(
+            declarations.whereType<IndexedSObject>().map((d) => d.name.value),
+            contains('Account'),
+          );
+        },
+      );
+    });
+
+    group('evictSObject', () {
+      test('removes an existing SObject entry from the cache', () async {
+        sobjectIndexDir
+            .childFile('Account.json')
+            .writeAsStringSync(jsonEncode(_sobjectJson('Account')));
+
+        final repo = makeRepository();
+        final before = await repo.getDeclarations();
+        expect(
+          before.whereType<IndexedSObject>().map((d) => d.name.value),
+          contains('Account'),
+        );
+
+        repo.evictSObject('Account', workspaceUri);
+
+        final after = await repo.getDeclarations();
+        expect(
+          after.whereType<IndexedSObject>().map((d) => d.name.value),
+          isNot(contains('Account')),
+        );
+      });
+
+      test('is a no-op when the entry does not exist', () async {
+        final repo = makeRepository();
+        await repo.getDeclarations();
+
+        expect(
+          () => repo.evictSObject('NonExistent', workspaceUri),
+          returnsNormally,
+        );
+      });
+
+      test(
+        'is a no-op when the cache for that root has never been loaded',
+        () async {
+          final repo = makeRepository();
+          expect(
+            () => repo.evictSObject('Account', workspaceUri),
+            returnsNormally,
+          );
+        },
+      );
+    });
+  });
+
+  group('declaration content', () {
+    late FileSystem fs;
+    late FakeLspPlatform platform;
+    late Directory workspaceRoot;
+    late Uri workspaceUri;
+
+    setUp(() {
+      fs = MemoryFileSystem();
+      platform = FakeLspPlatform();
+      workspaceRoot = fs.directory('/repo')..createSync();
+      workspaceUri = Uri.directory(workspaceRoot.path);
+    });
+
+    /// Runs the workspace indexer to produce `.sf-zed` metadata from `.cls`
+    /// source strings, then returns the resulting [IndexRepository].
+    Future<IndexRepository> indexAndCreateRepository({
+      required List<({String name, String source})> classFiles,
+    }) async {
       workspaceRoot
           .childFile('sfdx-project.json')
           .writeAsStringSync(
@@ -54,297 +371,6 @@ void main() {
               ],
             }),
           );
-
-      classesDir = fs.directory('/repo/force-app/main/default/classes')
-        ..createSync(recursive: true);
-    });
-
-    Future<void> runIndex() => indexer
-        .index(
-          InitializedParams([WorkspaceFolder(workspaceUri.toString(), 'repo')]),
-          token: ProgressToken.string('test-token'),
-        )
-        .drain<void>();
-
-    test('does not delete the index directory on re-index', () async {
-      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
-
-      await runIndex();
-
-      final indexDir = workspaceRoot
-          .childDirectory(indexRootFolderName)
-          .childDirectory(apexIndexFolderName);
-      expect(indexDir.existsSync(), isTrue);
-
-      // Write a sentinel file to confirm the directory is not wiped.
-      indexDir.childFile('_sentinel.txt').writeAsStringSync('keep me');
-
-      await runIndex();
-
-      expect(indexDir.childFile('_sentinel.txt').existsSync(), isTrue);
-    });
-
-    test('skips re-indexing a file whose .json is up to date', () async {
-      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
-
-      await runIndex();
-
-      final indexDir = workspaceRoot
-          .childDirectory(indexRootFolderName)
-          .childDirectory(apexIndexFolderName);
-      final jsonFile = indexDir.childFile('Foo.json');
-      final firstModified = jsonFile.lastModifiedSync();
-
-      // Run again — Foo.cls has not changed, so Foo.json should be untouched.
-      await runIndex();
-
-      expect(jsonFile.lastModifiedSync(), equals(firstModified));
-    });
-
-    test('re-indexes a file whose .cls is newer than its .json', () async {
-      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
-
-      await runIndex();
-
-      final indexDir = workspaceRoot
-          .childDirectory(indexRootFolderName)
-          .childDirectory(apexIndexFolderName);
-      final jsonFile = indexDir.childFile('Foo.json');
-      final firstModified = jsonFile.lastModifiedSync();
-
-      // Touch the .cls to make it newer than the .json.
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      classesDir
-          .childFile('Foo.cls')
-          .writeAsStringSync('public class Foo { public void newMethod() {} }');
-
-      await runIndex();
-
-      expect(jsonFile.lastModifiedSync().isAfter(firstModified), isTrue);
-    });
-
-    test('removes orphaned .json files with no matching .cls', () async {
-      classesDir.childFile('Foo.cls').writeAsStringSync('public class Foo {}');
-      classesDir.childFile('Bar.cls').writeAsStringSync('public class Bar {}');
-
-      await runIndex();
-
-      final indexDir = workspaceRoot
-          .childDirectory(indexRootFolderName)
-          .childDirectory(apexIndexFolderName);
-      expect(indexDir.childFile('Foo.json').existsSync(), isTrue);
-      expect(indexDir.childFile('Bar.json').existsSync(), isTrue);
-
-      // Delete Bar.cls to simulate a file removal.
-      classesDir.childFile('Bar.cls').deleteSync();
-
-      await runIndex();
-
-      expect(indexDir.childFile('Foo.json').existsSync(), isTrue);
-      expect(indexDir.childFile('Bar.json').existsSync(), isFalse);
-    });
-
-    test(
-      'only re-indexes stale files, leaving fresh .json files untouched',
-      () async {
-        classesDir
-            .childFile('Foo.cls')
-            .writeAsStringSync('public class Foo {}');
-        classesDir
-            .childFile('Bar.cls')
-            .writeAsStringSync('public class Bar {}');
-
-        await runIndex();
-
-        final indexDir = workspaceRoot
-            .childDirectory(indexRootFolderName)
-            .childDirectory(apexIndexFolderName);
-        final fooModified = indexDir.childFile('Foo.json').lastModifiedSync();
-        final barModified = indexDir.childFile('Bar.json').lastModifiedSync();
-
-        // Touch only Bar.cls.
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        classesDir
-            .childFile('Bar.cls')
-            .writeAsStringSync('public class Bar { public String name; }');
-
-        await runIndex();
-
-        expect(
-          indexDir.childFile('Foo.json').lastModifiedSync(),
-          equals(fooModified),
-          reason: 'Foo.json should not be re-indexed',
-        );
-        expect(
-          indexDir
-              .childFile('Bar.json')
-              .lastModifiedSync()
-              .isAfter(barModified),
-          isTrue,
-          reason: 'Bar.json should have been re-indexed',
-        );
-      },
-    );
-  });
-
-  group('Indexer', () {
-    late FileSystem fs;
-    late FakeLspPlatform platform;
-    late WorkspaceIndexer indexer;
-    late Directory workspaceRoot;
-    late Uri workspaceUri;
-
-    setUp(() {
-      fs = MemoryFileSystem();
-      platform = FakeLspPlatform();
-      indexer = WorkspaceIndexer(
-        sfdxWorkspaceLocator: SfdxWorkspaceLocator(
-          fileSystem: fs,
-          platform: platform,
-        ),
-        fileSystem: fs,
-        platform: platform,
-      );
-
-      workspaceRoot = fs.directory('/repo')..createSync();
-      workspaceUri = Uri.directory(workspaceRoot.path);
-    });
-
-    test('indexes Apex files and generates metadata', () async {
-      final projectFile = workspaceRoot.childFile('sfdx-project.json');
-      projectFile.writeAsStringSync(
-        jsonEncode({
-          'packageDirectories': [
-            {'path': 'force-app', 'default': true},
-          ],
-        }),
-      );
-
-      final classesDir = fs.directory('/repo/force-app/main/default/classes')
-        ..createSync(recursive: true);
-
-      final fooFile = classesDir.childFile('Foo.cls');
-      fooFile.writeAsStringSync('public class Foo { public void hello(){} }');
-
-      final params = InitializedParams([
-        WorkspaceFolder(workspaceUri.toString(), 'repo'),
-      ]);
-
-      final token = ProgressToken.string('test-token');
-      final progressEvents = await indexer.index(params, token: token).toList();
-
-      expect(progressEvents, hasLength(2));
-      expect(
-        (progressEvents.first.value as WorkDoneProgressBegin).title,
-        equals('Initializing Apex LSP'),
-      );
-      expect(
-        (progressEvents.last.value as WorkDoneProgressEnd).message,
-        equals('Indexing complete'),
-      );
-
-      final indexDir = workspaceRoot
-          .childDirectory(indexRootFolderName)
-          .childDirectory(apexIndexFolderName);
-      expect(indexDir.existsSync(), isTrue);
-
-      final metadataFile = indexDir.childFile('Foo.json');
-      expect(metadataFile.existsSync(), isTrue);
-
-      final metadata = jsonDecode(metadataFile.readAsStringSync());
-      expect(metadata['className'], equals('Foo'));
-      expect(
-        metadata['source']['relativePath'],
-        equals('force-app/main/default/classes/Foo.cls'),
-      );
-    });
-
-    test('indexes multiple files in parallel', () async {
-      final projectFile = workspaceRoot.childFile('sfdx-project.json');
-      projectFile.writeAsStringSync(
-        jsonEncode({
-          'packageDirectories': [
-            {'path': 'force-app', 'default': true},
-          ],
-        }),
-      );
-
-      final classesDir = fs.directory('/repo/force-app/main/default/classes')
-        ..createSync(recursive: true);
-
-      final classDefinitions = [
-        ('Alpha.cls', 'public class Alpha {}'),
-        ('Beta.cls', 'public class Beta {}'),
-        ('Gamma.cls', 'public class Gamma {}'),
-        ('Delta.cls', 'public class Delta {}'),
-        ('Epsilon.cls', 'public class Epsilon {}'),
-      ];
-
-      for (final (fileName, source) in classDefinitions) {
-        classesDir.childFile(fileName).writeAsStringSync(source);
-      }
-
-      final params = InitializedParams([
-        WorkspaceFolder(workspaceUri.toString(), 'repo'),
-      ]);
-
-      await indexer
-          .index(params, token: ProgressToken.string('test-token'))
-          .drain<void>();
-
-      final indexDir = workspaceRoot
-          .childDirectory(indexRootFolderName)
-          .childDirectory(apexIndexFolderName);
-      expect(indexDir.existsSync(), isTrue);
-
-      for (final (fileName, _) in classDefinitions) {
-        final className = fileName.replaceAll('.cls', '');
-        final metadataFile = indexDir.childFile('$className.json');
-        expect(
-          metadataFile.existsSync(),
-          isTrue,
-          reason: '$className.json should have been indexed',
-        );
-        final metadata = jsonDecode(metadataFile.readAsStringSync());
-        expect(metadata['className'], equals(className));
-      }
-    });
-
-    test('skips indexing if no workspace folders provided', () async {
-      final params = InitializedParams(null);
-      final events = await indexer
-          .index(params, token: ProgressToken.string('test-token'))
-          .toList();
-      expect(events, isEmpty);
-    });
-  });
-
-  group('IndexRepository', () {
-    late FileSystem fs;
-    late FakeLspPlatform platform;
-    late Directory workspaceRoot;
-    late Uri workspaceUri;
-
-    setUp(() {
-      fs = MemoryFileSystem();
-      platform = FakeLspPlatform();
-      workspaceRoot = fs.directory('/repo')..createSync();
-      workspaceUri = Uri.directory(workspaceRoot.path);
-    });
-
-    /// Runs the Indexer to produce `.sf-zed` metadata from `.cls` files,
-    /// then returns an [IndexRepository] pointed at the same workspace.
-    Future<IndexRepository> indexAndCreateRepository({
-      required List<({String name, String source})> classFiles,
-    }) async {
-      final projectFile = workspaceRoot.childFile('sfdx-project.json');
-      projectFile.writeAsStringSync(
-        jsonEncode({
-          'packageDirectories': [
-            {'path': 'force-app', 'default': true},
-          ],
-        }),
-      );
 
       final classesDir = fs.directory('/repo/force-app/main/default/classes')
         ..createSync(recursive: true);
@@ -373,7 +399,7 @@ void main() {
           )
           .drain<void>();
 
-      return indexer.getIndexLoader();
+      return indexer.getIndexLoader()!;
     }
 
     group('enums', () {

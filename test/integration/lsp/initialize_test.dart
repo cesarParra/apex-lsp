@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/version.dart';
 import 'package:test/test.dart';
 
@@ -41,6 +42,22 @@ void main() {
       expect(result.serverInfo, isNotNull);
       expect(result.serverInfo?.version, equals(packageVersion));
     });
+
+    test(
+      'advertises save notifications in textDocumentSync capabilities',
+      () async {
+        final result = await client.initialize(
+          workspaceUri: workspace.uri,
+          waitForIndexing: false,
+        );
+
+        final sync = result.capabilities.textDocumentSync;
+        expect(sync, isA<TextDocumentSyncOptions>());
+        final options = sync as TextDocumentSyncOptions;
+        expect(options.change, equals(1));
+        expect(options.save, isTrue);
+      },
+    );
 
     test(
       'fails with error response when request sent before initialize',

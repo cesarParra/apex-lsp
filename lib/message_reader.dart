@@ -277,6 +277,8 @@ final class MessageReader {
   /// - `textDocument/didOpen`
   /// - `textDocument/didChange`
   /// - `textDocument/didClose`
+  /// - `textDocument/didSave`
+  /// - `workspace/didDeleteFiles`
   static MessageParseResult? _parseJsonRpcMessage(Object decoded) {
     if (decoded is! Map) return null;
 
@@ -358,6 +360,21 @@ final class MessageReader {
           final Map<String, Object?> paramsJson => TextDocumentDidCloseMessage(
             DidCloseTextDocumentParams.fromJson(paramsJson),
           ),
+          _ => null,
+        },
+
+        'textDocument/didSave' => switch (rawParams) {
+          final Map<String, Object?> paramsJson => TextDocumentDidSaveMessage(
+            DidSaveTextDocumentParams.fromJson(paramsJson),
+          ),
+          _ => null,
+        },
+
+        'workspace/didDeleteFiles' => switch (rawParams) {
+          final Map<String, Object?> paramsJson =>
+            WorkspaceDidDeleteFilesMessage(
+              DeleteFilesParams.fromJson(paramsJson),
+            ),
           _ => null,
         },
 

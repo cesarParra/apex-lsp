@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:apex_lsp/lsp_out.dart';
-import 'package:apex_lsp/utils/platform.dart';
 
 /// Captures bytes written by [LspOut] into an in-memory buffer.
 ///
@@ -178,16 +177,6 @@ final class InMemoryLspInput {
   }
 
   Future<void> close() => _controller.close();
-}
-
-final class FakeLspPlatform implements LspPlatform {
-  FakeLspPlatform({this.isWindows = false, this.pathSeparator = '/'});
-
-  @override
-  final bool isWindows;
-
-  @override
-  final String pathSeparator;
 }
 
 /// Helper to build a minimal `initialize` request.

@@ -11,6 +11,7 @@ import 'package:apex_lsp/message_reader.dart';
 import 'package:apex_lsp/server.dart';
 import 'package:file/local.dart';
 
+import '../support/fake_platform.dart';
 import '../support/lsp_client.dart';
 import '../support/lsp_test_harness.dart';
 

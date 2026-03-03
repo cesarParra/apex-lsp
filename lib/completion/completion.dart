@@ -303,15 +303,12 @@ CompletionItemLabelDetails _methodLabelDetails(MethodDeclaration declaration) {
 /// );
 /// // Returns completions like ['Account']
 /// ```
-typedef CompletionLog = void Function(String message);
-
 Future<CompletionList> onCompletion({
   required String? text,
   required Position position,
   required List<Declaration> index,
   List<CompletionDataSource> sources = const [],
   Rank rank = rankCandidates,
-  CompletionLog? log,
 }) async {
   if (text == null) {
     return CompletionList(isIncomplete: false, items: <CompletionItem>[]);
@@ -323,20 +320,11 @@ Future<CompletionList> onCompletion({
     character: position.character,
   );
 
-  final indexedTypeCount = index.whereType<IndexedType>().length;
-  log?.call(
-    'Completion request: line=${position.line} char=${position.character} '
-    'cursorOffset=$cursorOffset indexSize=${index.length} '
-    'indexedTypes=$indexedTypeCount',
-  );
-
   final context = await detectCompletionContext(
     text: text,
     cursorOffset: cursorOffset,
     index: index,
   );
-
-  log?.call('Context: ${context.runtimeType} prefix="${context.prefix}"');
 
   final prefix = context.prefix;
 
@@ -350,8 +338,6 @@ Future<CompletionList> onCompletion({
     earlyStopLimit,
   );
 
-  log?.call('Candidates after filtering: ${candidates.length}');
-
   final isIncomplete = candidates.length > maxCompletionItems;
 
   final rankedItems = rankCandidates(
@@ -359,12 +345,6 @@ Future<CompletionList> onCompletion({
     prefix,
     limit: maxCompletionItems,
   ).map(_toCompletionItem).toList();
-
-  log?.call(
-    'Returning ${rankedItems.length} items, '
-    'isIncomplete=$isIncomplete'
-    '${rankedItems.isNotEmpty ? ' first=${rankedItems.first.label}' : ''}',
-  );
 
   return CompletionList(isIncomplete: isIncomplete, items: rankedItems);
 }

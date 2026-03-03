@@ -2,6 +2,7 @@ import 'package:apex_lsp/indexing/sobject_metadata.dart';
 import 'package:apex_lsp/indexing/sobject_xml_parser.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/indexer_utils.dart';
 import 'package:apex_lsp/indexing/workspace_indexer/sobject_index_entry.dart';
+import 'package:apex_lsp/indexing/workspace_indexer/utils.dart';
 import 'package:apex_lsp/utils/platform.dart';
 import 'package:file/file.dart';
 
@@ -10,6 +11,38 @@ typedef _SObjectDir = ({
   String objectName,
   Directory indexDir,
 });
+
+/// Re-indexes the SObject associated with [file], which may be either the
+/// `.object-meta.xml` file itself or any `.field-meta.xml` file inside its
+/// `fields/` subdirectory.
+Future<void> reindexSObjectFile({
+  required FileSystem fileSystem,
+  required LspPlatform platform,
+  required File file,
+  required Directory indexDir,
+}) async {
+  final Directory objectDir;
+
+  if (file.metadataType == .sObject) {
+    objectDir = file.parent;
+  } else if (file.metadataType == .sObjectField) {
+    // file lives at: objects/Account/fields/Name.field-meta.xml
+    // parent = fields/, parent.parent = Account/
+    objectDir = file.parent.parent;
+  } else {
+    return;
+  }
+
+  final objectName = fileSystem.path.basename(objectDir.path);
+  await _indexSingle(
+    fileSystem: fileSystem,
+    sobjectDir: (
+      objectDir: objectDir,
+      objectName: objectName,
+      indexDir: indexDir,
+    ),
+  );
+}
 
 Future<void> runSObjectIndexer({
   required FileSystem fileSystem,
@@ -23,7 +56,7 @@ Future<void> runSObjectIndexer({
   indexDir: indexDir,
   recognize: (file) {
     final basename = fileSystem.path.basename(file.path);
-    if (!basename.endsWith('.object-meta.xml')) return null;
+    if (file.metadataType != .sObject) return null;
     final objectName = basename.replaceFirst('.object-meta.xml', '');
     return (objectDir: file.parent, objectName: objectName, indexDir: indexDir);
   },

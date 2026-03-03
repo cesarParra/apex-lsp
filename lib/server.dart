@@ -254,14 +254,15 @@ final class Server {
           await for (final value in _workspaceIndexer.index(
             params,
             token: token,
+            onError: (path, error) => logMessage(
+              MessageType.error,
+              '[apex-lsp] ERROR reading index file $path: $error',
+            ),
           )) {
             _output.progress(params: value);
           }
 
-          _indexRepository = _workspaceIndexer.getIndexLoader(
-            log: (message) =>
-                logMessage(MessageType.log, '[apex-lsp] $message'),
-          );
+          _indexRepository = _workspaceIndexer.getIndexLoader();
         }
 
       case TextDocumentDidOpenMessage(:final params):
@@ -275,6 +276,15 @@ final class Server {
       case TextDocumentDidCloseMessage(:final params):
         if (_initializationStatus is Initialized) {
           _openDocuments.didClose(params);
+        }
+      case TextDocumentDidSaveMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          final uri = Uri.tryParse(params.textDocument.uri);
+          if (uri != null) unawaited(_reindexAndRefresh(uri));
+        }
+      case WorkspaceDidDeleteFilesMessage(:final params):
+        if (_initializationStatus is Initialized) {
+          unawaited(_deleteOrphansAndRefresh(params.files));
         }
     }
   }
@@ -334,15 +344,6 @@ final class Server {
     final localIndex = localIndexer.parseAndIndex(text);
     final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
 
-    await logMessage(
-      MessageType.log,
-      '[apex-lsp] Completion request: '
-      'uri=${params.textDocument.uri} '
-      'pos=(${params.position.line}:${params.position.character}) '
-      'localIndex=${localIndex.length} '
-      'workspaceTypes=${workspaceTypes.length}',
-    );
-
     final index = [...localIndex, ...workspaceTypes];
 
     final cursorOffset = offsetAtPosition(
@@ -358,7 +359,6 @@ final class Server {
       position: params.position,
       index: expandedIndex,
       sources: [declarationSource(expandedIndex), keywordSource],
-      log: (message) => logMessage(MessageType.log, '[apex-lsp] $message'),
     );
     await _output.sendResponse(id: id, result: completionList.toJson());
   }
@@ -386,6 +386,18 @@ final class Server {
     );
 
     await _output.sendResponse(id: id, result: result?.toJson());
+  }
+
+  Future<void> _reindexAndRefresh(Uri fileUri) async {
+    await _workspaceIndexer.reindexFile(fileUri);
+  }
+
+  Future<void> _deleteOrphansAndRefresh(List<FileDelete> files) async {
+    await Future.wait([
+      for (final file in files)
+        if (Uri.tryParse(file.uri) case final uri?)
+          _workspaceIndexer.deleteOrphanForUri(uri),
+    ]);
   }
 
   Future<void> _ensureGitignoreUpdated(InitializedParams params) async {
