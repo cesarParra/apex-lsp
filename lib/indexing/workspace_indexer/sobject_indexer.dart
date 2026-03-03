@@ -23,9 +23,9 @@ Future<void> reindexSObjectFile({
 }) async {
   final Directory objectDir;
 
-  if (file.metadataType is SObjectType) {
+  if (file.metadataType == .sObject) {
     objectDir = file.parent;
-  } else if (file.metadataType is SObjectFieldType) {
+  } else if (file.metadataType == .sObjectField) {
     // file lives at: objects/Account/fields/Name.field-meta.xml
     // parent = fields/, parent.parent = Account/
     objectDir = file.parent.parent;
@@ -56,7 +56,7 @@ Future<void> runSObjectIndexer({
   indexDir: indexDir,
   recognize: (file) {
     final basename = fileSystem.path.basename(file.path);
-    if (file.metadataType is! SObjectType) return null;
+    if (file.metadataType != .sObject) return null;
     final objectName = basename.replaceFirst('.object-meta.xml', '');
     return (objectDir: file.parent, objectName: objectName, indexDir: indexDir);
   },

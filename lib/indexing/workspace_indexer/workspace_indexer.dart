@@ -103,7 +103,7 @@ final class WorkspaceIndexer {
     final metadataType = file.metadataType;
 
     switch (metadataType) {
-      case ApexClassType():
+      case .apexClass:
         final apexIndexDir = _fileSystem.directory(
           _fileSystem.path.join(
             rootDir.path,
@@ -123,7 +123,7 @@ final class WorkspaceIndexer {
           Uri.file(_fileSystem.path.join(apexIndexDir.path, '$stem.json')),
           root,
         );
-      case SObjectType() || SObjectFieldType():
+      case .sObject || .sObjectField:
         final sobjectIndexDir = _fileSystem.directory(
           _fileSystem.path.join(
             rootDir.path,
@@ -140,7 +140,7 @@ final class WorkspaceIndexer {
         // For .object-meta.xml the object dir is the file's parent;
         // for .field-meta.xml it is one level higher (fields/ is a sibling).
         final objectDir = switch (metadataType) {
-          SObjectType() => file.parent,
+          .sObject => file.parent,
           _ => file.parent.parent,
         };
         final objectName = _fileSystem.path.basename(objectDir.path);
@@ -150,7 +150,7 @@ final class WorkspaceIndexer {
           ),
           root,
         );
-      default:
+      case .unsupported:
         return;
     }
   }
@@ -187,13 +187,13 @@ final class WorkspaceIndexer {
     );
 
     switch (metadataType) {
-      case ApexClassType():
+      case .apexClass:
         final typeName = _fileSystem.path.basenameWithoutExtension(filePath);
         _indexRepository?.evict(typeName, root);
-      case SObjectType():
+      case .sObject:
         final objectName = _fileSystem.path.basename(deletedFile.parent.path);
         _indexRepository?.evictSObject(objectName, root);
-      case SObjectFieldType():
+      case .sObjectField:
         // The orphan remover re-indexed the parent SObject; patch the cache.
         final objectName = _fileSystem.path.basename(
           deletedFile.parent.parent.path,
@@ -204,7 +204,7 @@ final class WorkspaceIndexer {
           ),
           root,
         );
-      case UnsupportedType():
+      case .unsupported:
         return;
     }
   }

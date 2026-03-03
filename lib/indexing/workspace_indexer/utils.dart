@@ -1,21 +1,13 @@
 import 'package:file/file.dart';
 
-sealed class MetadataType {}
-
-final class ApexClassType extends MetadataType {}
-
-final class SObjectType extends MetadataType {}
-
-final class SObjectFieldType extends MetadataType {}
-
-final class UnsupportedType extends MetadataType {}
+enum MetadataType { apexClass, sObject, sObjectField, unsupported }
 
 extension IndexedFileExtension on File {
   MetadataType get metadataType {
     final name = path.toLowerCase().split('/').last;
-    if (name.endsWith('.cls')) return ApexClassType();
-    if (name.endsWith('.object-meta.xml')) return SObjectType();
-    if (name.endsWith('.field-meta.xml')) return SObjectFieldType();
-    return UnsupportedType();
+    if (name.endsWith('.cls')) return .apexClass;
+    if (name.endsWith('.object-meta.xml')) return .sObject;
+    if (name.endsWith('.field-meta.xml')) return .sObjectField;
+    return .unsupported;
   }
 }

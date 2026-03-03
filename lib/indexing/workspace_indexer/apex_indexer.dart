@@ -30,7 +30,7 @@ Future<void> reindexApexFile({
   required File file,
   required Directory indexDir,
 }) async {
-  if (file.metadataType is! ApexClassType) return;
+  if (file.metadataType != .apexClass) return;
 
   await _indexSingle(
     fileSystem: fileSystem,
@@ -51,7 +51,7 @@ Future<void> runApexIndexer({
   packageDirectoryUris: packageDirectoryUris,
   indexDir: indexDir,
   recognize: (file) {
-    if (file.metadataType is! ApexClassType) return null;
+    if (file.metadataType != .apexClass) return null;
     return (file: file, workspaceRoot: workspaceRoot, indexDir: indexDir);
   },
   isStale: (apexFile) => _isStale(

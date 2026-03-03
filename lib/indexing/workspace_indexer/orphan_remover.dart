@@ -15,15 +15,15 @@ Future<void> deleteOrphanForFile({
   required Directory sobjectIndexDir,
 }) async {
   switch (deletedFile.metadataType) {
-    case ApexClassType():
+    case .apexClass:
       final stem = fileSystem.path.basenameWithoutExtension(deletedFile.path);
       await _deleteIfExists(apexIndexDir.childFile('$stem.json'));
-    case SObjectType():
+    case .sObject:
       // The object name equals the basename of the parent directory.
       // e.g. Account/Account.object-meta.xml → parent = Account/ → "Account"
       final objectName = fileSystem.path.basename(deletedFile.parent.path);
       await _deleteIfExists(sobjectIndexDir.childFile('$objectName.json'));
-    case SObjectFieldType():
+    case .sObjectField:
       // Path: .../objects/Account/fields/SomeField.field-meta.xml
       // parent = fields/,  parent.parent = Account/
       final objectDir = deletedFile.parent.parent;
@@ -39,7 +39,7 @@ Future<void> deleteOrphanForFile({
         file: objectDir.childFile('$objectName.object-meta.xml'),
         indexDir: sobjectIndexDir,
       );
-    case UnsupportedType():
+    case .unsupported:
       return;
   }
 }
