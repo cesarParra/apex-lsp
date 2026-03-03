@@ -119,9 +119,6 @@ Future<void> _removeOrphans<T>({
 
 /// Deletes any `.json` file in [indexDir] whose stem (lowercased) is not in
 /// [knownNames].
-///
-/// Called by [runIndexer] after every full index pass, and directly by
-/// per-file re-index functions after updating a single entry.
 Future<void> removeOrphans({
   required FileSystem fileSystem,
   required Set<String> knownNames,
