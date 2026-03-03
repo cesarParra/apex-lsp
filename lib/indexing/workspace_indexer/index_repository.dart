@@ -12,9 +12,7 @@ import 'package:file/file.dart';
 /// Callback invoked when a JSON index file cannot be read or parsed.
 typedef IndexReadErrorLog = void Function(String path, Object error);
 
-/// A typed, workspace-keyed in-memory cache for index entries of type [T].
-///
-/// Each workspace root maps to a `Map<String, T>` of lowercased-name → entry.
+/// An in-memory cache for index entries of type [T].
 /// The cache is populated lazily on the first [load] call for a given root.
 final class _IndexCache<T extends IndexedType> {
   _IndexCache({
