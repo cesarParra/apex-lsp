@@ -235,10 +235,12 @@ class LocalIndexer {
       }
     }
 
+    // TODO: Local support.
     return IndexedInterface(
       DeclarationName(interfaceName),
       methods: methods,
       visibility: AlwaysVisible(),
+      extendedInterfaces: [],
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),

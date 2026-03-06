@@ -246,7 +246,7 @@ IndexedType? _parseApex(Object? decoded) {
               ),
             )
             .toList(),
-        superInterface: null,
+        extendedInterfaces: mirror.extendedInterfaces,
       );
 
   IndexedClass fromClassMirror(

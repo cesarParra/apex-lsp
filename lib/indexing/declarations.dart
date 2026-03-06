@@ -86,13 +86,13 @@ final class IndexedClass extends IndexedType {
 
 final class IndexedInterface extends IndexedType {
   final List<MethodDeclaration> methods;
-  final String? superInterface;
+  final List<String> extendedInterfaces;
 
   IndexedInterface(
     super.name, {
     required this.methods,
     required super.visibility,
-    this.superInterface,
+    required this.extendedInterfaces,
     super.location,
   });
 }
