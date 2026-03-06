@@ -200,12 +200,13 @@ class LocalIndexer {
     );
   }
 
-  /// Extracts an interface declaration with its method signatures.
-  ///
-  /// Parses the interface name and all method declarations from the body.
+  /// Extracts an interface declaration with its method signatures
+  /// and extended interface names.
   IndexedInterface _extractInterface(TSNode node, List<int> bytes) {
     final nameNode = _getField(node, 'name');
     final interfaceName = _nodeText(nameNode, bytes);
+
+    final extendedInterfaces = _extractExtendedInterfaces(node, bytes);
 
     final methods = <MethodDeclaration>[];
     final bodyNode = _getField(node, 'body');
@@ -235,17 +236,47 @@ class LocalIndexer {
       }
     }
 
-    // TODO: Local support.
     return IndexedInterface(
       DeclarationName(interfaceName),
       methods: methods,
       visibility: AlwaysVisible(),
-      extendedInterfaces: [],
+      extendedInterfaces: extendedInterfaces,
       location: (
         _bindings.ts_node_start_byte(node),
         _bindings.ts_node_end_byte(node),
       ),
     );
+  }
+
+  /// Extracts the list of interface names from the `extends` clause.
+  ///
+  /// `extends_interfaces` is a child node (not a named field), so it is found
+  /// via type-based child search. Its `type_list` child contains one or more
+  /// type identifiers separated by commas.
+  List<String> _extractExtendedInterfaces(TSNode node, List<int> bytes) {
+    final extendsNodes = _collectDirectChildrenByType(
+      node,
+      'extends_interfaces',
+    );
+    if (extendsNodes.isEmpty) return const [];
+
+    final typeListNodes = _collectDirectChildrenByType(
+      extendsNodes.first,
+      'type_list',
+    );
+    if (typeListNodes.isEmpty) return const [];
+
+    final typeList = typeListNodes.first;
+    final count = _bindings.ts_node_named_child_count(typeList);
+    final names = <String>[];
+    for (var i = 0; i < count; i++) {
+      final child = _bindings.ts_node_named_child(typeList, i);
+      final name = _nodeText(child, bytes);
+      if (name.isNotEmpty) {
+        names.add(name);
+      }
+    }
+    return names;
   }
 
   Declaration _extractClass(TSNode node, List<int> bytes) {

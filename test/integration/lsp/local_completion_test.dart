@@ -707,6 +707,32 @@ g.{cursor}''');
       expect(completions, containsCompletions(['greet', 'sayGoodbye']));
     });
 
+    test('completes extended interface methods via dot access', () async {
+      final textWithPosition = extractCursorPosition('''
+public interface ParentGreeter {
+  String whatsup();
+}
+public interface Greeter extends ParentGreeter {
+  String greet();
+  void sayGoodbye();
+}
+Greeter g;
+g.{cursor}''');
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final completions = await client.completion(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(
+        completions,
+        containsCompletions(['greet', 'sayGoodbye', 'whatsup']),
+      );
+    });
+
     test('returns only keyword completions for empty document', () async {
       const text = '';
       final document = Document.withText(text);
