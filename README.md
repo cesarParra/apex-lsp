@@ -14,7 +14,6 @@ version is automatically installed for you.
 
 #### Limitations
 - Only local files
-- Only Apex files (no SObjects)
 
 ### Autocompletion
 
