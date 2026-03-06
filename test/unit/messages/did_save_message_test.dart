@@ -4,7 +4,7 @@ import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/message_reader.dart';
 import 'package:test/test.dart';
 
-import '../support/lsp_test_harness.dart';
+import '../../support/lsp_test_harness.dart';
 
 void main() {
   group('textDocument/didSave notification parsing', () {
