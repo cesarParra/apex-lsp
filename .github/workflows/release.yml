@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   check-version:
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
@@ -36,8 +35,38 @@ jobs:
             echo "should_release=true" >> $GITHUB_OUTPUT
           fi
 
-  build-binaries:
+  test:
     needs: [check-version]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run build_runner
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Tree-sitter library
+        run: |
+          chmod +x tool/build_tree_sitter_lib.sh
+          ./tool/build_tree_sitter_lib.sh
+
+      - name: Analyze project source
+        run: dart analyze
+
+      - name: Run tests
+        env:
+          TS_SFAPEX_LIB: ${{ github.workspace }}/bin/libtree_sitter_sfapex.so
+        run: dart test
+
+  build-binaries:
+    needs: [check-version, test]
     if: needs.check-version.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:

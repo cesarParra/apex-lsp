@@ -262,6 +262,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -292,10 +293,63 @@ void main() {
       expect(completionList, containsCompletion('saySomething'));
     });
 
+    test(
+      'autocomplete extended members of a parameter typed as an interface',
+      () async {
+        final parentInterface = IndexedInterface(
+          DeclarationName('ParentFoo'),
+          visibility: AlwaysVisible(),
+          extendedInterfaces: [],
+          methods: [
+            MethodDeclaration(
+              DeclarationName('parentDoSomething'),
+              visibility: AlwaysVisible(),
+              body: Block.empty(),
+              isStatic: false,
+            ),
+          ],
+        );
+        final interfaceType = IndexedInterface(
+          DeclarationName('Foo'),
+          visibility: AlwaysVisible(),
+          extendedInterfaces: ['ParentFoo'],
+          methods: [
+            MethodDeclaration(
+              DeclarationName('doSomething'),
+              visibility: AlwaysVisible(),
+              body: Block.empty(),
+              isStatic: false,
+            ),
+            MethodDeclaration(
+              DeclarationName('saySomething'),
+              visibility: AlwaysVisible(),
+              body: Block.empty(),
+              isStatic: false,
+            ),
+          ],
+        );
+        final parameter = IndexedVariable(
+          DeclarationName('paramVar'),
+          typeName: DeclarationName('Foo'),
+          location: (0, 10),
+        );
+        final completionList = await complete(
+          extractCursorPosition('paramVar.{cursor}'),
+          index: [parentInterface, interfaceType, parameter],
+        );
+
+        expect(completionList.items, hasLength(3));
+        expect(completionList, containsCompletion('parentDoSomething'));
+        expect(completionList, containsCompletion('doSomething'));
+        expect(completionList, containsCompletion('saySomething'));
+      },
+    );
+
     test('autocomplete members of a parameter filtered by prefix', () async {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -509,6 +563,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -531,6 +586,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -560,6 +616,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -594,6 +651,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Foo'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [
           MethodDeclaration(
             DeclarationName('doSomething'),
@@ -776,6 +834,7 @@ void main() {
           IndexedInterface(
             DeclarationName('Bar'),
             visibility: AlwaysVisible(),
+            extendedInterfaces: [],
             methods: [
               MethodDeclaration(
                 DeclarationName('doSomething'),
@@ -804,6 +863,7 @@ void main() {
           IndexedInterface(
             DeclarationName('Bar'),
             visibility: AlwaysVisible(),
+            extendedInterfaces: [],
             methods: [
               MethodDeclaration(
                 DeclarationName('m1'),
@@ -1189,6 +1249,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Greeter'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [],
       );
       final completionList = await complete(
@@ -1382,6 +1443,7 @@ void main() {
       final interfaceType = IndexedInterface(
         DeclarationName('Greeter'),
         visibility: AlwaysVisible(),
+        extendedInterfaces: [],
         methods: [],
       );
       final completionList = await complete(

@@ -110,9 +110,13 @@ void main() {
       workspace = await createTestWorkspace(
         classFiles: [
           (
+            name: 'ParentGreeter.cls',
+            source: 'public interface ParentGreeter { String whatsup(); }',
+          ),
+          (
             name: 'Greeter.cls',
             source:
-                'public interface Greeter { String greet(); void sayGoodbye(); }',
+                'public interface Greeter extends ParentGreeter { String greet(); void sayGoodbye(); }',
           ),
         ],
       );
@@ -158,6 +162,28 @@ myVar.{cursor}''');
         );
 
         expect(completions, containsCompletions(['greet', 'sayGoodbye']));
+      },
+    );
+
+    test(
+      'completes workspace interface extended methods via variable dot access',
+      () async {
+        final textWithPosition = extractCursorPosition('''
+Greeter myVar;
+myVar.{cursor}''');
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final completions = await client.completion(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        expect(
+          completions,
+          containsCompletions(['whatsup', 'greet', 'sayGoodbye']),
+        );
       },
     );
   });

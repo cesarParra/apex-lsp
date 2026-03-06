@@ -101,7 +101,8 @@ CompletionDataSource declarationSource(List<Declaration> index) =>
       CompletionContextMember() => _memberCandidates(
         index,
         cursorOffset,
-        context,
+        context.typeName,
+        context.objectName,
       ),
     };
 
@@ -147,13 +148,14 @@ List<CompletionCandidate> _topLevelCandidates(
 List<CompletionCandidate> _memberCandidates(
   List<Declaration> index,
   int cursorOffset,
-  CompletionContextMember context,
+  String? contextTypeName,
+  String? contextObjectName,
 ) {
-  if (context.typeName == null) {
+  if (contextTypeName == null) {
     return <CompletionCandidate>[];
   }
 
-  final typeName = DeclarationName(context.typeName!);
+  final typeName = DeclarationName(contextTypeName);
 
   DeclarationName? resolveVariableType(DeclarationName name) => index
       .whereType<IndexedVariable>()
@@ -172,7 +174,7 @@ List<CompletionCandidate> _memberCandidates(
       ) ??
       resolveQualified(typeName);
 
-  final isStaticAccess = context.objectName == context.typeName;
+  final isStaticAccess = contextObjectName == contextTypeName;
 
   return switch (indexedType) {
     null => <CompletionCandidate>[],
@@ -182,10 +184,18 @@ List<CompletionCandidate> _memberCandidates(
           .where((member) => isStaticAccess == _isStaticDeclaration(member))
           .map((member) => MemberCandidate(member, parentType: indexedType))
           .toList(),
-    IndexedInterface() =>
-      indexedType.methods
-          .map((method) => MemberCandidate(method, parentType: indexedType))
-          .toList(),
+    IndexedInterface() => [
+      ...indexedType.methods.map(
+        (method) => MemberCandidate(method, parentType: indexedType),
+      ),
+      for (final extendedInterface in indexedType.extendedInterfaces)
+        ..._memberCandidates(
+          index,
+          cursorOffset,
+          extendedInterface,
+          contextObjectName,
+        ),
+    ],
     IndexedEnum() =>
       indexedType.values
           .map((value) => MemberCandidate(value, parentType: indexedType))

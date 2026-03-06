@@ -571,6 +571,47 @@ public class Foo {
   });
 
   group('indexes interfaces', () {
+    test('parses extended interfaces', () {
+      final text = '''
+public interface Greeter extends ParentGreeter {
+  String greet();
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final interfaceDeclaration = result.first as IndexedInterface;
+      expect(
+        interfaceDeclaration.extendedInterfaces,
+        equals(['ParentGreeter']),
+      );
+    });
+
+    test('parses multiple extended interfaces', () {
+      final text = '''
+public interface Greeter extends ParentGreeter, Farewell {
+  String greet();
+}
+      ''';
+
+      final result = indexer.parseAndIndex(text);
+
+      final interfaceDeclaration = result.first as IndexedInterface;
+      expect(
+        interfaceDeclaration.extendedInterfaces,
+        equals(['ParentGreeter', 'Farewell']),
+      );
+    });
+
+    test('extended interfaces is empty when no extends clause', () {
+      final text = 'public interface Greeter { String greet(); }';
+
+      final result = indexer.parseAndIndex(text);
+
+      final interfaceDeclaration = result.first as IndexedInterface;
+      expect(interfaceDeclaration.extendedInterfaces, isEmpty);
+    });
+
     test('indexes top level interface declaration', () {
       final text = '''
 public interface Foo {

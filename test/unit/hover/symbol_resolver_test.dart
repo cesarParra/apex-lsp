@@ -236,6 +236,7 @@ void main() {
         final iface = IndexedInterface(
           DeclarationName('Runnable'),
           visibility: AlwaysVisible(),
+          extendedInterfaces: [],
           methods: [],
         );
         final index = <Declaration>[iface];
