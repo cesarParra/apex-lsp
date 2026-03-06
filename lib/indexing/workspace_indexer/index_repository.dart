@@ -221,33 +221,31 @@ IndexedType? _parseApex(Object? decoded) {
 
   IndexedInterface fromInterfaceMirror(
     apex_reflection.InterfaceMirror mirror,
-  ) =>
-      // TODO: Parse and populate super
-      IndexedInterface(
-        DeclarationName(mirror.name),
-        visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
-        methods: mirror.methods
-            .map(
-              (method) => MethodDeclaration(
-                DeclarationName(method.name),
-                body: Block.empty(),
-                isStatic: method.isStatic,
-                returnType: method.typeReference.rawDeclaration,
-                // Interface methods are always accessible
-                visibility: AlwaysVisible(),
-                parameters: method.parameters
-                    .map(
-                      (parameter) => (
-                        type: parameter.typeReference.rawDeclaration,
-                        name: parameter.name,
-                      ),
-                    )
-                    .toList(),
-              ),
-            )
-            .toList(),
-        extendedInterfaces: mirror.extendedInterfaces,
-      );
+  ) => IndexedInterface(
+    DeclarationName(mirror.name),
+    visibility: mirror.isAlwaysVisible ? AlwaysVisible() : NeverVisible(),
+    methods: mirror.methods
+        .map(
+          (method) => MethodDeclaration(
+            DeclarationName(method.name),
+            body: Block.empty(),
+            isStatic: method.isStatic,
+            returnType: method.typeReference.rawDeclaration,
+            // Interface methods are always accessible
+            visibility: AlwaysVisible(),
+            parameters: method.parameters
+                .map(
+                  (parameter) => (
+                    type: parameter.typeReference.rawDeclaration,
+                    name: parameter.name,
+                  ),
+                )
+                .toList(),
+          ),
+        )
+        .toList(),
+    extendedInterfaces: mirror.extendedInterfaces,
+  );
 
   IndexedClass fromClassMirror(
     apex_reflection.ClassMirror mirror,
@@ -294,7 +292,7 @@ IndexedType? _parseApex(Object? decoded) {
         ),
       ),
     ],
-    superClass: null, // TODO: Parse and populate superclass
+    superClass: mirror.extendedClass,
   );
 
   return switch (typeMirrorJson['type_name']) {

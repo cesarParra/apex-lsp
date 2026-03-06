@@ -1012,7 +1012,6 @@ sealed class OutgoingNotificationMessageWithParams<TParams>
   const OutgoingNotificationMessageWithParams();
 }
 
-// todo: this should be withparams
 @JsonSerializable(createFactory: false)
 class LogMessage extends OutgoingNotificationMessage {
   @override
@@ -1025,7 +1024,6 @@ class LogMessage extends OutgoingNotificationMessage {
   Map<String, Object?> toJson() => _$LogMessageToJson(this);
 }
 
-// todo: this should be withparams
 @JsonSerializable(createFactory: false)
 class ShowMessage extends OutgoingNotificationMessage {
   @override
