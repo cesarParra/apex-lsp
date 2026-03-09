@@ -13,13 +13,16 @@ void main() {
     late LspClient client;
 
     setUp(() async {
-      workspace = await createTestWorkspace(classFiles: []);
-      client = createLspClient()..start();
+      final result = createLspClient();
+      client = result.client..start();
+      workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
+        classFiles: [],
+      );
     });
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     group('ParseError (-32700)', () {

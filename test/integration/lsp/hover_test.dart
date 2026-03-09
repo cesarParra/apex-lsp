@@ -14,8 +14,9 @@ void main() {
     late InitializeResult initResult;
 
     setUp(() async {
-      workspace = await createTestWorkspace();
-      client = createLspClient()..start();
+      final result = createLspClient();
+      client = result.client..start();
+      workspace = await createTestWorkspace(fileSystem: result.fileSystem);
       initResult = await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -24,7 +25,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     group('hoverProvider capability', () {
@@ -206,7 +206,10 @@ Status s;
 
     group('workspace symbols', () {
       test('hover over workspace class shows same content as local', () async {
+        final result = createLspClient();
+        final c = result.client..start();
         final ws = await createTestWorkspace(
+          fileSystem: result.fileSystem,
           classFiles: [
             (
               name: 'Customer.cls',
@@ -214,7 +217,6 @@ Status s;
             ),
           ],
         );
-        final c = createLspClient()..start();
         await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
         const source = 'Customer cust;';
@@ -232,16 +234,17 @@ Status s;
         expect(hoverResult, contains('Customer'));
 
         await c.dispose();
-        await deleteTestWorkspace(ws);
       });
     });
 
     group('shadowing', () {
       test('parameter shadows workspace class with similar name', () async {
+        final result = createLspClient();
+        final c = result.client..start();
         final ws = await createTestWorkspace(
+          fileSystem: result.fileSystem,
           classFiles: [(name: 'Token.cls', source: 'public class Token { }')],
         );
-        final c = createLspClient()..start();
         await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
         const source = '''
@@ -277,18 +280,19 @@ public class Parser {
         );
 
         await c.dispose();
-        await deleteTestWorkspace(ws);
       });
 
       test(
         'local variable with same name as workspace class resolves to variable',
         () async {
+          final result = createLspClient();
+          final c = result.client..start();
           final ws = await createTestWorkspace(
+            fileSystem: result.fileSystem,
             classFiles: [
               (name: 'Account.cls', source: 'public class Account { }'),
             ],
           );
-          final c = createLspClient()..start();
           await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
           const source = '''
@@ -327,7 +331,6 @@ public class TestClass {
           );
 
           await c.dispose();
-          await deleteTestWorkspace(ws);
         },
       );
     });

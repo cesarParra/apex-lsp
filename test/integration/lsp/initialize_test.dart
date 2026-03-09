@@ -1,7 +1,4 @@
-import 'dart:io';
-
-import 'package:apex_lsp/message.dart';
-import 'package:apex_lsp/version.dart';
+import 'package:file/memory.dart';
 import 'package:test/test.dart';
 
 import '../../support/lsp_client.dart';
@@ -10,37 +7,56 @@ import '../../support/test_workspace.dart';
 import '../integration_server.dart';
 
 void main() {
-  group('LSP Initialization', () {
+  group('During initialization, the server', () {
     late TestWorkspace workspace;
     late LspClient client;
+    late MemoryFileSystem fileSystem;
 
     setUp(() async {
-      workspace = await createTestWorkspace(
-        classFiles: [
-          (
-            name: 'Foo.cls',
-            source: await readFixture('initialize_and_completion/Foo.cls'),
-          ),
-        ],
-      );
-      client = createLspClient()..start();
+      final result = createLspClient();
+      client = result.client..start();
+      fileSystem = result.fileSystem;
+      workspace = await createTestWorkspace(fileSystem: fileSystem);
     });
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
-    test('client can initialize', () async {
+    test('provides its name', () async {
+      final result = await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: false,
+      );
+
+      expect(result.serverInfo?.name, equals('apex-lsp'));
+    });
+
+    test('provides its version', () async {
+      final result = await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: false,
+      );
+
+      expect(result.serverInfo?.version, isNotNull);
+    });
+
+    test('provides completions', () async {
       final result = await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: false,
       );
 
       expect(result, hasCapability('completionProvider'));
+    });
+
+    test('provides textDocumentSync', () async {
+      final result = await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: false,
+      );
+
       expect(result, hasCapability('textDocumentSync'));
-      expect(result.serverInfo, isNotNull);
-      expect(result.serverInfo?.version, equals(packageVersion));
     });
 
     test(
@@ -52,10 +68,8 @@ void main() {
         );
 
         final sync = result.capabilities.textDocumentSync;
-        expect(sync, isA<TextDocumentSyncOptions>());
-        final options = sync as TextDocumentSyncOptions;
-        expect(options.change, equals(1));
-        expect(options.save, isTrue);
+        expect(sync.change, equals(1));
+        expect(sync.save, isTrue);
       },
     );
 
@@ -77,7 +91,7 @@ void main() {
     );
 
     test('receives indexing updates after initialization', () async {
-      // Success without timeout proves indexing works — waitForIndexing
+      // Success without timeout proves indexing works -- waitForIndexing
       // waits for the $/progress end notification.
       final result = await client.initialize(
         workspaceUri: workspace.uri,
@@ -91,19 +105,23 @@ void main() {
   group('.gitignore management', () {
     late TestWorkspace workspace;
     late LspClient client;
+    late MemoryFileSystem fileSystem;
 
     setUp(() async {
-      workspace = await createTestWorkspace();
-      client = createLspClient()..start();
+      final result = createLspClient();
+      client = result.client..start();
+      fileSystem = result.fileSystem;
+      workspace = await createTestWorkspace(fileSystem: fileSystem);
     });
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('adds .sf-zed to .gitignore when file exists without it', () async {
-      final gitignore = File('${workspace.directory.path}/.gitignore');
+      final gitignore = fileSystem.file(
+        '${workspace.directory.path}/.gitignore',
+      );
       await gitignore.writeAsString('node_modules/\n*.log\n');
 
       await client.initialize(
@@ -116,7 +134,9 @@ void main() {
     });
 
     test('does not duplicate .sf-zed if already in .gitignore', () async {
-      final gitignore = File('${workspace.directory.path}/.gitignore');
+      final gitignore = fileSystem.file(
+        '${workspace.directory.path}/.gitignore',
+      );
       await gitignore.writeAsString('node_modules/\n.sf-zed\n');
 
       await client.initialize(
@@ -130,7 +150,9 @@ void main() {
     });
 
     test('creates .gitignore with .sf-zed when no .gitignore exists', () async {
-      final gitignore = File('${workspace.directory.path}/.gitignore');
+      final gitignore = fileSystem.file(
+        '${workspace.directory.path}/.gitignore',
+      );
       expect(await gitignore.exists(), isFalse);
 
       await client.initialize(

@@ -1261,42 +1261,40 @@ final class ServerCapabilities {
   ///
   /// Either an integer (`TextDocumentSyncKind`) or a [TextDocumentSyncOptions]
   /// object when save notifications are also requested.
-  final Object? textDocumentSync;
+  final TextDocumentSyncOptions textDocumentSync;
 
-  /// Completion provider options, or `null` if completion is not supported.
-  final CompletionOptions? completionProvider;
+  /// Completion provider options.
+  final CompletionOptions completionProvider;
 
   /// Whether the server supports hover requests.
-  final bool? hoverProvider;
+  final bool hoverProvider;
 
   /// Workspace-level capability options (e.g. file operation filters).
-  ///
-  /// Stored as a raw map so callers can compose arbitrary LSP workspace
-  /// capability structures without requiring a full typed hierarchy.
-  final Map<String, Object?>? workspace;
+  final Map<String, Object?> workspace;
 
   const ServerCapabilities({
-    this.textDocumentSync,
-    this.completionProvider,
-    this.hoverProvider,
-    this.workspace,
+    required this.textDocumentSync,
+    required this.completionProvider,
+    required this.hoverProvider,
+    required this.workspace,
   });
 
   factory ServerCapabilities.fromJson(Map<String, Object?> json) {
     final completionProviderJson =
-        json['completionProvider'] as Map<String, Object?>?;
+        json['completionProvider'] as Map<String, Object?>;
     final syncJson = json['textDocumentSync'];
     return ServerCapabilities(
       textDocumentSync: switch (syncJson) {
         final Map<String, Object?> map => TextDocumentSyncOptions.fromJson(map),
-        final int kind => kind,
-        _ => null,
+        _ => throw ArgumentError.value(
+          syncJson,
+          'textDocumentSync',
+          'Expected an object for textDocumentSync',
+        ),
       },
-      completionProvider: completionProviderJson != null
-          ? CompletionOptions.fromJson(completionProviderJson)
-          : null,
-      hoverProvider: json['hoverProvider'] as bool?,
-      workspace: json['workspace'] as Map<String, Object?>?,
+      completionProvider: CompletionOptions.fromJson(completionProviderJson),
+      hoverProvider: json['hoverProvider'] as bool,
+      workspace: json['workspace'] as Map<String, Object?>,
     );
   }
 

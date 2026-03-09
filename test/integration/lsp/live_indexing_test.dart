@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import 'package:file/memory.dart';
 import 'package:test/test.dart';
 
 import '../../support/lsp_matchers.dart';
@@ -33,9 +32,14 @@ void main() {
   group('live indexing (textDocument/didSave)', () {
     late TestWorkspace workspace;
     late LspClient client;
+    late MemoryFileSystem fileSystem;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
+      fileSystem = result.fileSystem;
       workspace = await createTestWorkspace(
+        fileSystem: fileSystem,
         classFiles: [
           (
             name: 'Widget.cls',
@@ -43,7 +47,6 @@ void main() {
           ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -52,7 +55,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test(
@@ -75,8 +77,10 @@ w.{cursor}''');
         expect(completionsBefore, containsCompletion('color'));
         expect(completionsBefore, doesNotContainCompletion('size'));
 
-        // Update the file on disk to add a new field.
-        final classFile = File('${workspace.classesPath}/Widget.cls');
+        // Update the file in the memory filesystem to add a new field.
+        final classFile = fileSystem.file(
+          '${workspace.classesPath}/Widget.cls',
+        );
         await classFile.writeAsString(
           'public class Widget { public String color; public Integer size; }',
         );
@@ -103,15 +107,19 @@ w.{cursor}''');
   group('live indexing (workspace/didDeleteFiles)', () {
     late TestWorkspace workspace;
     late LspClient client;
+    late MemoryFileSystem fileSystem;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
+      fileSystem = result.fileSystem;
       workspace = await createTestWorkspace(
+        fileSystem: fileSystem,
         classFiles: [
           (name: 'Alpha.cls', source: 'public class Alpha {}'),
           (name: 'Beta.cls', source: 'public class Beta {}'),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -120,7 +128,6 @@ w.{cursor}''');
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test(
@@ -139,8 +146,8 @@ w.{cursor}''');
         expect(completionsBefore, containsCompletion('Alpha'));
         expect(completionsBefore, containsCompletion('Beta'));
 
-        // Delete Alpha.cls from disk and notify the server.
-        final alphaFile = File('${workspace.classesPath}/Alpha.cls');
+        // Delete Alpha.cls from the memory filesystem and notify the server.
+        final alphaFile = fileSystem.file('${workspace.classesPath}/Alpha.cls');
         await alphaFile.delete();
         await client.deleteFiles(uris: [Uri.file(alphaFile.path).toString()]);
 
