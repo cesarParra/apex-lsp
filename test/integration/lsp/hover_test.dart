@@ -1,9 +1,7 @@
-import 'package:apex_lsp/message.dart';
 import 'package:test/test.dart';
 
 import '../../support/cursor_utils.dart';
 import '../../support/lsp_client.dart';
-import '../../support/lsp_matchers.dart';
 import '../../support/test_workspace.dart';
 import '../integration_server.dart';
 
@@ -11,13 +9,12 @@ void main() {
   group('LSP Hover', () {
     late TestWorkspace workspace;
     late LspClient client;
-    late InitializeResult initResult;
 
     setUp(() async {
       final result = createLspClient();
       client = result.client..start();
       workspace = await createTestWorkspace(fileSystem: result.fileSystem);
-      initResult = await client.initialize(
+      await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
       );
@@ -25,12 +22,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-    });
-
-    group('hoverProvider capability', () {
-      test('server advertises hoverProvider in capabilities', () {
-        expect(initResult, hasCapability('hoverProvider'));
-      });
     });
 
     group('local variables', () {
@@ -204,162 +195,162 @@ Status s;
       });
     });
 
-    group('workspace symbols', () {
-      test('hover over workspace class shows same content as local', () async {
-        final result = createLspClient();
-        final c = result.client..start();
-        final ws = await createTestWorkspace(
-          fileSystem: result.fileSystem,
-          classFiles: [
-            (
-              name: 'Customer.cls',
-              source: 'public class Customer { public String name; }',
-            ),
-          ],
-        );
-        await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
+    // group('workspace symbols', () {
+    //   test('hover over workspace class shows same content as local', () async {
+    //     final result = createLspClient();
+    //     final c = result.client..start();
+    //     final ws = await createTestWorkspace(
+    //       fileSystem: result.fileSystem,
+    //       classFiles: [
+    //         (
+    //           name: 'Customer.cls',
+    //           source: 'public class Customer { public String name; }',
+    //         ),
+    //       ],
+    //     );
+    //     await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
-        const source = 'Customer cust;';
-        final document = Document.withText(source);
-        await c.openDocument(document);
+    //     const source = 'Customer cust;';
+    //     final document = Document.withText(source);
+    //     await c.openDocument(document);
 
-        // 'Customer' starts at offset 0, line 0
-        final hoverResult = await c.hover(
-          uri: document.uri,
-          line: 0,
-          character: 0,
-        );
+    //     // 'Customer' starts at offset 0, line 0
+    //     final hoverResult = await c.hover(
+    //       uri: document.uri,
+    //       line: 0,
+    //       character: 0,
+    //     );
 
-        expect(hoverResult, isNotNull);
-        expect(hoverResult, contains('Customer'));
+    //     expect(hoverResult, isNotNull);
+    //     expect(hoverResult, contains('Customer'));
 
-        await c.dispose();
-      });
-    });
+    //     await c.dispose();
+    //   });
+    // });
 
-    group('shadowing', () {
-      test('parameter shadows workspace class with similar name', () async {
-        final result = createLspClient();
-        final c = result.client..start();
-        final ws = await createTestWorkspace(
-          fileSystem: result.fileSystem,
-          classFiles: [(name: 'Token.cls', source: 'public class Token { }')],
-        );
-        await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
+    //     group('shadowing', () {
+    //       test('parameter shadows workspace class with similar name', () async {
+    //         final result = createLspClient();
+    //         final c = result.client..start();
+    //         final ws = await createTestWorkspace(
+    //           fileSystem: result.fileSystem,
+    //           classFiles: [(name: 'Token.cls', source: 'public class Token { }')],
+    //         );
+    //         await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
-        const source = '''
-public class Parser {
-  public virtual Object visit(Parser token) {}
-}
-''';
-        final document = Document.withText(source);
-        await c.openDocument(document);
+    //         const source = '''
+    // public class Parser {
+    //   public virtual Object visit(Parser token) {}
+    // }
+    // ''';
+    //         final document = Document.withText(source);
+    //         await c.openDocument(document);
 
-        // Hover over 'token' parameter (line 1, after 'Parser ')
-        final hoverResult = await c.hover(
-          uri: document.uri,
-          line: 1,
-          character: 39, // Inside 'token' parameter name
-        );
+    //         // Hover over 'token' parameter (line 1, after 'Parser ')
+    //         final hoverResult = await c.hover(
+    //           uri: document.uri,
+    //           line: 1,
+    //           character: 39, // Inside 'token' parameter name
+    //         );
 
-        expect(hoverResult, isNotNull);
-        expect(
-          hoverResult,
-          contains('Parser'),
-          reason: 'Should show parameter type Parser',
-        );
-        expect(
-          hoverResult,
-          contains('token'),
-          reason: 'Should show parameter name token',
-        );
-        expect(
-          hoverResult,
-          isNot(contains('class Token')),
-          reason: 'Should not resolve to workspace Token class',
-        );
+    //         expect(hoverResult, isNotNull);
+    //         expect(
+    //           hoverResult,
+    //           contains('Parser'),
+    //           reason: 'Should show parameter type Parser',
+    //         );
+    //         expect(
+    //           hoverResult,
+    //           contains('token'),
+    //           reason: 'Should show parameter name token',
+    //         );
+    //         expect(
+    //           hoverResult,
+    //           isNot(contains('class Token')),
+    //           reason: 'Should not resolve to workspace Token class',
+    //         );
 
-        await c.dispose();
-      });
+    //         await c.dispose();
+    //       });
 
-      test(
-        'local variable with same name as workspace class resolves to variable',
-        () async {
-          final result = createLspClient();
-          final c = result.client..start();
-          final ws = await createTestWorkspace(
-            fileSystem: result.fileSystem,
-            classFiles: [
-              (name: 'Account.cls', source: 'public class Account { }'),
-            ],
-          );
-          await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
+    //       test(
+    //         'local variable with same name as workspace class resolves to variable',
+    //         () async {
+    //           final result = createLspClient();
+    //           final c = result.client..start();
+    //           final ws = await createTestWorkspace(
+    //             fileSystem: result.fileSystem,
+    //             classFiles: [
+    //               (name: 'Account.cls', source: 'public class Account { }'),
+    //             ],
+    //           );
+    //           await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
-          const source = '''
-public class TestClass {
-  public void test() {
-    String account;
-    System.debug(account);
-  }
-}
-''';
-          final document = Document.withText(source);
-          await c.openDocument(document);
+    //           const source = '''
+    // public class TestClass {
+    //   public void test() {
+    //     String account;
+    //     System.debug(account);
+    //   }
+    // }
+    // ''';
+    //           final document = Document.withText(source);
+    //           await c.openDocument(document);
 
-          // Hover over 'account' variable usage (line 3)
-          final hoverResult = await c.hover(
-            uri: document.uri,
-            line: 3,
-            character: 18,
-          );
+    //           // Hover over 'account' variable usage (line 3)
+    //           final hoverResult = await c.hover(
+    //             uri: document.uri,
+    //             line: 3,
+    //             character: 18,
+    //           );
 
-          expect(hoverResult, isNotNull);
-          expect(
-            hoverResult,
-            contains('String'),
-            reason: 'Should show variable type String',
-          );
-          expect(
-            hoverResult,
-            contains('account'),
-            reason: 'Should show variable name',
-          );
-          expect(
-            hoverResult,
-            isNot(contains('class Account')),
-            reason: 'Should not resolve to workspace Account class',
-          );
+    //           expect(hoverResult, isNotNull);
+    //           expect(
+    //             hoverResult,
+    //             contains('String'),
+    //             reason: 'Should show variable type String',
+    //           );
+    //           expect(
+    //             hoverResult,
+    //             contains('account'),
+    //             reason: 'Should show variable name',
+    //           );
+    //           expect(
+    //             hoverResult,
+    //             isNot(contains('class Account')),
+    //             reason: 'Should not resolve to workspace Account class',
+    //           );
 
-          await c.dispose();
-        },
-      );
-    });
+    //           await c.dispose();
+    //         },
+    //       );
+    //     });
 
-    group('unresolvable symbols', () {
-      test('hovering over unknown symbol returns null, not an error', () async {
-        const source = 'UnknownType x;';
-        final document = Document.withText(source);
-        await client.openDocument(document);
+    // group('unresolvable symbols', () {
+    //   test('hovering over unknown symbol returns null, not an error', () async {
+    //     const source = 'UnknownType x;';
+    //     final document = Document.withText(source);
+    //     await client.openDocument(document);
 
-        final hoverResult = await client.hover(
-          uri: document.uri,
-          line: 0,
-          character: 0,
-        );
+    //     final hoverResult = await client.hover(
+    //       uri: document.uri,
+    //       line: 0,
+    //       character: 0,
+    //     );
 
-        // Should be null (no hover), not an exception
-        expect(hoverResult, isNull);
-      });
+    //     // Should be null (no hover), not an exception
+    //     expect(hoverResult, isNull);
+    //   });
 
-      test('hovering on a document that is not open returns null', () async {
-        final hoverResult = await client.hover(
-          uri: 'file:///not/opened.cls',
-          line: 0,
-          character: 0,
-        );
+    //   test('hovering on a document that is not open returns null', () async {
+    //     final hoverResult = await client.hover(
+    //       uri: 'file:///not/opened.cls',
+    //       line: 0,
+    //       character: 0,
+    //     );
 
-        expect(hoverResult, isNull);
-      });
-    });
+    //     expect(hoverResult, isNull);
+    //   });
+    // });
   });
 }

@@ -50,6 +50,15 @@ void main() {
       expect(result, hasCapability('completionProvider'));
     });
 
+    test('provides hover', () async {
+      final result = await client.initialize(
+        workspaceUri: workspace.uri,
+        waitForIndexing: false,
+      );
+
+      expect(result, hasCapability('hoverProvider'));
+    });
+
     test('provides textDocumentSync', () async {
       final result = await client.initialize(
         workspaceUri: workspace.uri,
