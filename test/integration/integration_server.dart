@@ -14,6 +14,7 @@ import 'package:file/memory.dart';
 import '../support/fake_platform.dart';
 import '../support/lsp_client.dart';
 import '../support/lsp_test_harness.dart';
+import '../support/test_workspace.dart';
 
 final _libPath = Platform.environment['TS_SFAPEX_LIB'];
 
@@ -70,4 +71,13 @@ IntegrationData createIntegrationData({MemoryFileSystem? fileSystem}) {
     client: LspClient(sink: sink, input: input, server: server),
     fileSystem: fs,
   );
+}
+
+Future<LspClient> createInitializedClient() async {
+  final (:server, :sink, :input, fileSystem: fs) = createIntegrationData();
+
+  final client = LspClient(sink: sink, input: input, server: server)..start();
+  final workspace = await createTestWorkspace(fileSystem: fs);
+  await client.initialize(workspaceUri: workspace.uri, waitForIndexing: true);
+  return client;
 }

@@ -2,22 +2,14 @@ import 'package:test/test.dart';
 
 import '../../support/cursor_utils.dart';
 import '../../support/lsp_client.dart';
-import '../../support/test_workspace.dart';
 import '../integration_server.dart';
 
 void main() {
   group('LSP Hover', () {
-    late TestWorkspace workspace;
     late LspClient client;
 
     setUp(() async {
-      final result = createLspClient();
-      client = result.client..start();
-      workspace = await createTestWorkspace(fileSystem: result.fileSystem);
-      await client.initialize(
-        workspaceUri: workspace.uri,
-        waitForIndexing: true,
-      );
+      client = await createInitializedClient();
     });
 
     tearDown(() async {

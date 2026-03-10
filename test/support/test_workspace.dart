@@ -88,6 +88,7 @@ Future<TestWorkspace> createTestWorkspace({
   return TestWorkspace(directory);
 }
 
+// TODO: What is this?
 /// Reads a fixture file relative to `test/fixtures/`.
 Future<String> readFixture(String relativePath) {
   return io.File('test/fixtures/$relativePath').readAsString();
