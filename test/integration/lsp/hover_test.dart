@@ -16,7 +16,7 @@ void main() {
       await client.dispose();
     });
 
-    group('over local variables', () {
+    group('over local declarations', () {
       test('a variable name shows its type', () async {
         final textWithPosition = extractCursorPosition(
           'String my{cursor}Variable = null;',
@@ -119,9 +119,7 @@ void main() {
           reason: 'Variable should not be visible outside its scope',
         );
       });
-    });
 
-    group('methods', () {
       test('hover over method name shows return type and parameters', () async {
         const source = '''
 public class MyClass {
@@ -144,9 +142,7 @@ public class MyClass {
         expect(hoverResult, contains('String'));
         expect(hoverResult, contains('input'));
       });
-    });
 
-    group('class names', () {
       test('hover over class name shows class declaration summary', () async {
         const source = '''
 public class Acco{cursor}unt {}
