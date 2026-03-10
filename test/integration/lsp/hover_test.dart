@@ -5,7 +5,7 @@ import '../../support/lsp_client.dart';
 import '../integration_server.dart';
 
 void main() {
-  group('LSP Hover', () {
+  group('When hovering', () {
     late LspClient client;
 
     setUp(() async {
@@ -16,10 +16,8 @@ void main() {
       await client.dispose();
     });
 
-    group('local variables', () {
-      test('hover over variable name shows its type', () async {
-        // Place {cursor} inside the variable name so the position is derived
-        // directly from the marker rather than being hard-coded.
+    group('over local variables', () {
+      test('a variable name shows its type', () async {
         final textWithPosition = extractCursorPosition(
           'String my{cursor}Variable = null;',
         );
@@ -37,23 +35,24 @@ void main() {
         expect(hoverResult, contains('myVariable'));
       });
 
-      test('hover over local variable in method body shows type', () async {
+      test('a local variable in method body shows type', () async {
         const source = '''
-public class TestClass {
-  public void setIsInListLiteral() {
-    String myLocalString;
-    System.debug(myLocalString);
-  }
-}
-''';
-        final document = Document.withText(source);
+      public class TestClass {
+        public void setIsInListLiteral() {
+          String myLocalString;
+          System.debug(myLoca{cursor}lString);
+        }
+      }
+      ''';
+
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover over 'myLocalString' in the debug statement (line 3)
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 3,
-          character: 18, // Inside 'myLocalString' after 'debug('
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(
@@ -67,21 +66,22 @@ public class TestClass {
 
       test('hover before declaration returns null', () async {
         const source = '''
-public class TestClass {
-  public void test() {
-    x = myVar;
-    String myVar;
-  }
-}
-''';
-        final document = Document.withText(source);
+        public class TestClass {
+          public void test() {
+            x = my{cursor}Var;
+            String myVar;
+          }
+        }
+        ''';
+
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover over 'myVar' before its declaration (line 2)
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 2,
-          character: 8, // 'myVar' in assignment
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(
@@ -93,23 +93,24 @@ public class TestClass {
 
       test('hover outside scope returns null', () async {
         const source = '''
-public class TestClass {
-  public void test() {
-    {
-      String scopedVar;
-    }
-    x = scopedVar;
-  }
-}
-''';
-        final document = Document.withText(source);
+        public class TestClass {
+          public void test() {
+            {
+              String scopedVar;
+            }
+            x = scoped{cursor}Var;
+          }
+        }
+        ''';
+
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover over 'scopedVar' outside its block scope (line 5)
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 5,
-          character: 8, // 'scopedVar' outside scope
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(
