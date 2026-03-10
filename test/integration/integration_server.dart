@@ -73,11 +73,18 @@ IntegrationData createIntegrationData({MemoryFileSystem? fileSystem}) {
   );
 }
 
-Future<LspClient> createInitializedClient() async {
+Future<LspClient> createInitializedClient({
+  List<ClassFile> classFiles = const [],
+  List<SObjectFile> objectFiles = const [],
+}) async {
   final (:server, :sink, :input, fileSystem: fs) = createIntegrationData();
 
   final client = LspClient(sink: sink, input: input, server: server)..start();
-  final workspace = await createTestWorkspace(fileSystem: fs);
+  final workspace = await createTestWorkspace(
+    fileSystem: fs,
+    classFiles: classFiles,
+    objectFiles: objectFiles,
+  );
   await client.initialize(workspaceUri: workspace.uri, waitForIndexing: true);
   return client;
 }
