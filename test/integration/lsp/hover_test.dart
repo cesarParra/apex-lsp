@@ -125,17 +125,17 @@ void main() {
       test('hover over method name shows return type and parameters', () async {
         const source = '''
 public class MyClass {
-  public void doWork(String input) {}
+  public void do{cursor}Work(String input) {}
 }
 ''';
-        final document = Document.withText(source);
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // 'doWork' starts at line 1, character 14
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 1,
-          character: 14,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
@@ -149,17 +149,17 @@ public class MyClass {
     group('class names', () {
       test('hover over class name shows class declaration summary', () async {
         const source = '''
-public class Account {}
+public class Acco{cursor}unt {}
 Account a;
 ''';
-        final document = Document.withText(source);
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // 'Account' on line 0, character 13
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 0,
-          character: 13,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
@@ -169,17 +169,17 @@ Account a;
 
       test('hover over enum name shows enum declaration', () async {
         const source = '''
-public enum Status { ACTIVE, INACTIVE }
+public enum Sta{cursor}tus { ACTIVE, INACTIVE }
 Status s;
 ''';
-        final document = Document.withText(source);
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // 'Status' on line 0, character 12
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 0,
-          character: 12,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
