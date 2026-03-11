@@ -9,23 +9,16 @@ import '../../support/test_workspace.dart';
 import '../integration_server.dart';
 
 void main() {
-  group('incremental indexing', () {
-    test('first run with no .sf-zed builds a complete index', () async {
+  group('when indexing', () {
+    test('the first run with no .sf-zed builds a complete index', () async {
       final fileSystem = MemoryFileSystem();
-      final workspace = await createTestWorkspace(
+      final client = await createInitializedClient(
         fileSystem: fileSystem,
         classFiles: [(name: 'Greeter.cls', source: 'public class Greeter {}')],
       );
 
-      final (:client, fileSystem: _) = createLspClient(fileSystem: fileSystem);
-      client.start();
-      await client.initialize(
-        workspaceUri: workspace.uri,
-        waitForIndexing: true,
-      );
-
       final indexDir = fileSystem.directory(
-        '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName',
+        '${client.workspace!.directory.path}/$indexRootFolderName/$apexIndexFolderName',
       );
       expect(indexDir.existsSync(), isTrue);
       expect(

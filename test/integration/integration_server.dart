@@ -61,6 +61,7 @@ IntegrationData createIntegrationData({MemoryFileSystem? fileSystem}) {
   return (server: integrationServer, sink: sink, input: input, fileSystem: fs);
 }
 
+// TODO: Remove this endpoint
 ({LspClient client, MemoryFileSystem fileSystem}) createLspClient({
   MemoryFileSystem? fileSystem,
 }) {
@@ -74,17 +75,25 @@ IntegrationData createIntegrationData({MemoryFileSystem? fileSystem}) {
 }
 
 Future<LspClient> createInitializedClient({
+  MemoryFileSystem? fileSystem,
   List<ClassFile> classFiles = const [],
   List<SObjectFile> objectFiles = const [],
 }) async {
-  final (:server, :sink, :input, fileSystem: fs) = createIntegrationData();
+  final (:server, :sink, :input, fileSystem: fs) = createIntegrationData(
+    fileSystem: fileSystem,
+  );
 
-  final client = LspClient(sink: sink, input: input, server: server)..start();
   final workspace = await createTestWorkspace(
     fileSystem: fs,
     classFiles: classFiles,
     objectFiles: objectFiles,
   );
-  await client.initialize(workspaceUri: workspace.uri, waitForIndexing: true);
+  final client = LspClient(
+    sink: sink,
+    input: input,
+    server: server,
+    workspace: workspace,
+  )..start();
+  await client.initialize(waitForIndexing: true);
   return client;
 }
