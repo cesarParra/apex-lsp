@@ -10,13 +10,10 @@ void main() {
   group('During initialization, the server', () {
     late TestWorkspace workspace;
     late LspClient client;
-    late MemoryFileSystem fileSystem;
 
     setUp(() async {
-      final result = createLspClient();
-      client = result.client..start();
-      fileSystem = result.fileSystem;
-      workspace = await createTestWorkspace(fileSystem: fileSystem);
+      client = await createInitializedClient();
+      workspace = client.workspace!;
     });
 
     tearDown(() async {
@@ -82,23 +79,6 @@ void main() {
       },
     );
 
-    test(
-      'fails with error response when request sent before initialize',
-      () async {
-        final response = await client.sendRawRequest(
-          method: 'textDocument/completion',
-          params: {
-            'textDocument': {'uri': 'file:///does/not/matter'},
-            'position': {'line': 0, 'character': 0},
-          },
-        );
-
-        expect(response, isLspError(-32002));
-        expect(response, isLspErrorWithMessage('Server not initialized'));
-      },
-      timeout: const Timeout(Duration(seconds: 5)),
-    );
-
     test('receives indexing updates after initialization', () async {
       // Success without timeout proves indexing works -- waitForIndexing
       // waits for the $/progress end notification.
@@ -109,6 +89,29 @@ void main() {
 
       expect(result, hasCapability('completionProvider'));
     });
+  });
+
+  group('when interacting before initialization', () {
+    test(
+      'the server fails with error response when request sent before initialize',
+      () async {
+        final result = createLspClient();
+        final client = result.client..start();
+        final response = await client.sendRawRequest(
+          method: 'textDocument/completion',
+          params: {
+            'textDocument': {'uri': 'file:///does/not/matter'},
+            'position': {'line': 0, 'character': 0},
+          },
+        );
+
+        expect(response, isLspError(-32002));
+        expect(response, isLspErrorWithMessage('Server not initialized'));
+
+        await client.dispose();
+      },
+      timeout: const Timeout(Duration(seconds: 5)),
+    );
   });
 
   group('.gitignore management', () {
