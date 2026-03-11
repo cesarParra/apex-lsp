@@ -127,6 +127,71 @@ extension DeclarationsExtension on List<Declaration> {
   }
 }
 
+/// The result of extracting an identifier from text at a cursor position.
+///
+/// Contains both the extracted identifier [value] and the [startOffset]
+/// within the text where the identifier begins. The start offset is needed
+/// for dot-context detection, which probes one position before the identifier
+/// to check for a `.` operator.
+typedef ExtractedIdentifier = ({String value, int startOffset});
+
+/// A function that extracts an identifier from [text] at [cursorOffset].
+///
+/// Different strategies are used depending on the consumer:
+/// - [extractPrefix] scans backward only (for completion, where only the
+///   text already typed matters).
+/// - [extractFullIdentifier] scans in both directions (for hover, where the
+///   entire word under the cursor is needed).
+typedef IdentifierExtractor =
+    ExtractedIdentifier Function(String text, int cursorOffset);
+
+/// Extracts the identifier prefix before the cursor (backward scan only).
+///
+/// Used by the completion system, where only the already-typed portion
+/// matters for filtering candidates.
+ExtractedIdentifier extractPrefix(String text, int cursorOffset) {
+  final value = text.extractIndentifierPrefixAt(cursorOffset);
+  return (value: value, startOffset: cursorOffset - value.length);
+}
+
+/// Extracts the full identifier token under the cursor (bidirectional scan).
+///
+/// Used by the hover system, where the entire word the cursor is touching
+/// is needed for exact-match resolution.
+ExtractedIdentifier extractFullIdentifier(String text, int cursorOffset) {
+  if (text.isEmpty) return (value: '', startOffset: cursorOffset);
+
+  final offset = cursorOffset.clamp(0, text.length - 1).toInt();
+
+  // If cursor is not on an identifier character, try one position left.
+  int probe = offset;
+  if (!text.codeUnitAt(probe).isIdentifierChar) {
+    if (probe > 0) {
+      probe--;
+    } else {
+      return (value: '', startOffset: cursorOffset);
+    }
+  }
+
+  if (!text.codeUnitAt(probe).isIdentifierChar) {
+    return (value: '', startOffset: cursorOffset);
+  }
+
+  // Expand left.
+  var start = probe;
+  while (start > 0 && text.codeUnitAt(start - 1).isIdentifierChar) {
+    start--;
+  }
+
+  // Expand right.
+  var end = probe + 1;
+  while (end < text.length && text.codeUnitAt(end).isIdentifierChar) {
+    end++;
+  }
+
+  return (value: text.substring(start, end), startOffset: start);
+}
+
 /// Extracts declarations from method/constructor bodies and class members.
 ///
 /// Used by both completion and hover to expand the index with declarations

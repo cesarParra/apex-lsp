@@ -110,19 +110,26 @@ final class CompletionContextMember extends CompletionContext {
 ///
 /// Uses the [index] to resolve variable types and type names when detecting
 /// member-access contexts (e.g. `account.`).
+///
+/// The [extractIdentifier] parameter controls how the identifier at the cursor
+/// is extracted. Defaults to [extractPrefix] (backward scan only), which is
+/// appropriate for completion. Pass [extractFullIdentifier] for hover, where
+/// the entire word under the cursor is needed.
 Future<CompletionContext> detectCompletionContext({
   required String text,
   required int cursorOffset,
   required List<Declaration> index,
+  IdentifierExtractor extractIdentifier = extractPrefix,
 }) async {
-  final prefix = text.extractIndentifierPrefixAt(cursorOffset);
+  final extracted = extractIdentifier(text, cursorOffset);
+  final identifier = extracted.value;
 
   var dotIndex = _findMemberDotIndex(text, cursorOffset);
 
-  // When typing a member name (e.g. "foo.ba"), the cursor is past the dot.
-  // Look before the prefix to find the dot operator.
-  if (dotIndex == null && prefix.isNotEmpty) {
-    final probeIndex = cursorOffset - prefix.length - 1;
+  // When the identifier is past the dot (e.g. "foo.ba" or "foo.bar"),
+  // look before the identifier start to find the dot operator.
+  if (dotIndex == null && identifier.isNotEmpty) {
+    final probeIndex = extracted.startOffset - 1;
     if (probeIndex >= 0) {
       final ch = text.codeUnitAt(probeIndex);
       if (ch == 0x2E /* . */ ) {
@@ -152,7 +159,7 @@ Future<CompletionContext> detectCompletionContext({
       return CompletionContextMember(
         typeName: enclosingClass?.name.value,
         objectName: objectName,
-        prefix: prefix,
+        prefix: identifier,
         text: text,
         cursorOffset: cursorOffset,
       );
@@ -184,14 +191,14 @@ Future<CompletionContext> detectCompletionContext({
         IndexedSObject() => declaration.name.value,
       },
       objectName: objectName,
-      prefix: prefix,
+      prefix: identifier,
       text: text,
       cursorOffset: cursorOffset,
     );
   }
 
   return CompletionContextTopLevel(
-    prefix: prefix,
+    prefix: identifier,
     text: text,
     cursorOffset: cursorOffset,
   );
