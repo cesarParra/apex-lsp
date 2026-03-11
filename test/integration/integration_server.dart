@@ -9,11 +9,12 @@ import 'package:apex_lsp/indexing/workspace_indexer/workspace_indexer.dart';
 import 'package:apex_lsp/lsp_out.dart';
 import 'package:apex_lsp/message_reader.dart';
 import 'package:apex_lsp/server.dart';
-import 'package:file/local.dart';
+import 'package:file/memory.dart';
 
 import '../support/fake_platform.dart';
 import '../support/lsp_client.dart';
 import '../support/lsp_test_harness.dart';
+import '../support/test_workspace.dart';
 
 final _libPath = Platform.environment['TS_SFAPEX_LIB'];
 
@@ -31,12 +32,13 @@ typedef IntegrationData = ({
   Server server,
   InMemoryByteSink sink,
   InMemoryLspInput input,
+  MemoryFileSystem fileSystem,
 });
 
-IntegrationData createIntegrationData() {
+IntegrationData createIntegrationData({MemoryFileSystem? fileSystem}) {
   final input = InMemoryLspInput(sync: true);
   final sink = InMemoryByteSink();
-  final fileSystem = LocalFileSystem();
+  final fs = fileSystem ?? MemoryFileSystem();
   final platform = FakeLspPlatform();
   final integrationServer = Server(
     output: LspOut(output: sink),
@@ -46,20 +48,55 @@ IntegrationData createIntegrationData() {
     localIndexer: LocalIndexer(bindings: _bindings),
     workspaceIndexer: WorkspaceIndexer(
       sfdxWorkspaceLocator: SfdxWorkspaceLocator(
-        fileSystem: fileSystem,
+        fileSystem: fs,
         platform: platform,
       ),
-      fileSystem: fileSystem,
+      fileSystem: fs,
       platform: platform,
     ),
     cancellationTracker: CancellationTracker(),
-    fileSystem: fileSystem,
+    fileSystem: fs,
     platform: platform,
   );
-  return (server: integrationServer, sink: sink, input: input);
+  return (server: integrationServer, sink: sink, input: input, fileSystem: fs);
 }
 
-LspClient createLspClient() {
-  final (:server, :sink, :input) = createIntegrationData();
-  return LspClient(sink: sink, input: input, server: server);
+// TODO: Remove this endpoint
+({LspClient client, MemoryFileSystem fileSystem}) createLspClient({
+  MemoryFileSystem? fileSystem,
+}) {
+  final (:server, :sink, :input, fileSystem: fs) = createIntegrationData(
+    fileSystem: fileSystem,
+  );
+  return (
+    client: LspClient(sink: sink, input: input, server: server),
+    fileSystem: fs,
+  );
+}
+
+Future<LspClient> createInitializedClient({
+  MemoryFileSystem? fileSystem,
+  List<ClassFile> classFiles = const [],
+  List<SObjectFile> objectFiles = const [],
+  TestWorkspace? workspace,
+}) async {
+  final (:server, :sink, :input, fileSystem: fs) = createIntegrationData(
+    fileSystem: fileSystem,
+  );
+
+  final resolvedWorkspace =
+      workspace ??
+      await createTestWorkspace(
+        fileSystem: fs,
+        classFiles: classFiles,
+        objectFiles: objectFiles,
+      );
+  final client = LspClient(
+    sink: sink,
+    input: input,
+    server: server,
+    workspace: resolvedWorkspace,
+  )..start();
+  await client.initialize(waitForIndexing: true);
+  return client;
 }

@@ -1,4 +1,6 @@
-import 'dart:io';
+import 'dart:io' as io;
+
+import 'package:file/file.dart';
 
 typedef ClassFile = ({String name, String source});
 
@@ -24,47 +26,58 @@ final class TestWorkspace {
 /// Creates a temporary SFDX workspace with the given Apex class files and
 /// SObject metadata files.
 ///
-/// The workspace includes an `sfdx-project.json` copied from fixtures,
-/// the standard `force-app/main/default/classes` directory, and optionally
+/// The workspace includes an `sfdx-project.json`, the standard
+/// `force-app/main/default/classes` directory, and optionally
 /// `force-app/main/default/objects/<ObjectName>/` directories.
+///
+/// All files are written into the provided [fileSystem], using a fixed
+/// `/workspace` root path.
 Future<TestWorkspace> createTestWorkspace({
+  required FileSystem fileSystem,
   List<ClassFile> classFiles = const [],
   List<SObjectFile> objectFiles = const [],
 }) async {
-  final directory = await Directory.systemTemp.createTemp('apex-lsp-it-');
+  final directory = fileSystem.directory('/workspace');
+  await directory.create(recursive: true);
 
-  final sfdxProject = File('${directory.path}/sfdx-project.json');
-  await sfdxProject.writeAsString(
-    await readFixture('initialize_and_completion/sfdx-project.json'),
-  );
+  final sfdxProject = fileSystem.file('${directory.path}/sfdx-project.json');
+  await sfdxProject.writeAsString('''
+    {
+      "name": "apex-lsp-it",
+      "packageDirectories": [
+        { "path": "force-app", "default": true }
+      ],
+      "sourceApiVersion": "65.0"
+    }
+    ''');
 
-  final classesDir = Directory(
+  final classesDir = fileSystem.directory(
     '${directory.path}/force-app/main/default/classes',
   );
   await classesDir.create(recursive: true);
 
   for (final classFile in classFiles) {
-    final file = File('${classesDir.path}/${classFile.name}');
+    final file = fileSystem.file('${classesDir.path}/${classFile.name}');
     await file.writeAsString(classFile.source);
   }
 
   for (final objectFile in objectFiles) {
-    final objectDir = Directory(
+    final objectDir = fileSystem.directory(
       '${directory.path}/force-app/main/default/objects/${objectFile.objectName}',
     );
     await objectDir.create(recursive: true);
 
-    final objectMetaFile = File(
+    final objectMetaFile = fileSystem.file(
       '${objectDir.path}/${objectFile.objectName}.object-meta.xml',
     );
     await objectMetaFile.writeAsString(objectFile.objectMetaXml);
 
     if (objectFile.fields.isNotEmpty) {
-      final fieldsDir = Directory('${objectDir.path}/fields');
+      final fieldsDir = fileSystem.directory('${objectDir.path}/fields');
       await fieldsDir.create();
 
       for (final field in objectFile.fields) {
-        final fieldFile = File(
+        final fieldFile = fileSystem.file(
           '${fieldsDir.path}/${field.name}.field-meta.xml',
         );
         await fieldFile.writeAsString(field.xml);
@@ -75,12 +88,8 @@ Future<TestWorkspace> createTestWorkspace({
   return TestWorkspace(directory);
 }
 
-/// Deletes a temporary test workspace.
-Future<void> deleteTestWorkspace(TestWorkspace workspace) async {
-  await workspace.directory.delete(recursive: true);
-}
-
+// TODO: What is this?
 /// Reads a fixture file relative to `test/fixtures/`.
 Future<String> readFixture(String relativePath) {
-  return File('test/fixtures/$relativePath').readAsString();
+  return io.File('test/fixtures/$relativePath').readAsString();
 }

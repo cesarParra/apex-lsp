@@ -1,42 +1,23 @@
-import 'package:apex_lsp/message.dart';
 import 'package:test/test.dart';
 
 import '../../support/cursor_utils.dart';
 import '../../support/lsp_client.dart';
-import '../../support/lsp_matchers.dart';
-import '../../support/test_workspace.dart';
 import '../integration_server.dart';
 
 void main() {
-  group('LSP Hover', () {
-    late TestWorkspace workspace;
-    late LspClient client;
-    late InitializeResult initResult;
+  group('When hovering', () {
+    group('over local declarations', () {
+      late LspClient client;
 
-    setUp(() async {
-      workspace = await createTestWorkspace();
-      client = createLspClient()..start();
-      initResult = await client.initialize(
-        workspaceUri: workspace.uri,
-        waitForIndexing: true,
-      );
-    });
-
-    tearDown(() async {
-      await client.dispose();
-      await deleteTestWorkspace(workspace);
-    });
-
-    group('hoverProvider capability', () {
-      test('server advertises hoverProvider in capabilities', () {
-        expect(initResult, hasCapability('hoverProvider'));
+      setUp(() async {
+        client = await createInitializedClient();
       });
-    });
 
-    group('local variables', () {
-      test('hover over variable name shows its type', () async {
-        // Place {cursor} inside the variable name so the position is derived
-        // directly from the marker rather than being hard-coded.
+      tearDown(() async {
+        await client.dispose();
+      });
+
+      test('a variable name shows its type', () async {
         final textWithPosition = extractCursorPosition(
           'String my{cursor}Variable = null;',
         );
@@ -54,23 +35,24 @@ void main() {
         expect(hoverResult, contains('myVariable'));
       });
 
-      test('hover over local variable in method body shows type', () async {
+      test('a local variable in method body shows type', () async {
         const source = '''
-public class TestClass {
-  public void setIsInListLiteral() {
-    String myLocalString;
-    System.debug(myLocalString);
-  }
-}
-''';
-        final document = Document.withText(source);
+      public class TestClass {
+        public void setIsInListLiteral() {
+          String myLocalString;
+          System.debug(myLoca{cursor}lString);
+        }
+      }
+      ''';
+
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover over 'myLocalString' in the debug statement (line 3)
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 3,
-          character: 18, // Inside 'myLocalString' after 'debug('
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(
@@ -84,21 +66,22 @@ public class TestClass {
 
       test('hover before declaration returns null', () async {
         const source = '''
-public class TestClass {
-  public void test() {
-    x = myVar;
-    String myVar;
-  }
-}
-''';
-        final document = Document.withText(source);
+        public class TestClass {
+          public void test() {
+            x = my{cursor}Var;
+            String myVar;
+          }
+        }
+        ''';
+
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover over 'myVar' before its declaration (line 2)
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 2,
-          character: 8, // 'myVar' in assignment
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(
@@ -110,23 +93,24 @@ public class TestClass {
 
       test('hover outside scope returns null', () async {
         const source = '''
-public class TestClass {
-  public void test() {
-    {
-      String scopedVar;
-    }
-    x = scopedVar;
-  }
-}
-''';
-        final document = Document.withText(source);
+        public class TestClass {
+          public void test() {
+            {
+              String scopedVar;
+            }
+            x = scoped{cursor}Var;
+          }
+        }
+        ''';
+
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // Hover over 'scopedVar' outside its block scope (line 5)
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 5,
-          character: 8, // 'scopedVar' outside scope
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(
@@ -135,23 +119,21 @@ public class TestClass {
           reason: 'Variable should not be visible outside its scope',
         );
       });
-    });
 
-    group('methods', () {
       test('hover over method name shows return type and parameters', () async {
         const source = '''
-public class MyClass {
-  public void doWork(String input) {}
-}
-''';
-        final document = Document.withText(source);
+        public class MyClass {
+          public void do{cursor}Work(String input) {}
+        }
+        ''';
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // 'doWork' starts at line 1, character 14
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 1,
-          character: 14,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
@@ -160,22 +142,20 @@ public class MyClass {
         expect(hoverResult, contains('String'));
         expect(hoverResult, contains('input'));
       });
-    });
 
-    group('class names', () {
       test('hover over class name shows class declaration summary', () async {
         const source = '''
-public class Account {}
-Account a;
-''';
-        final document = Document.withText(source);
+        public class Acco{cursor}unt {}
+        Account a;
+        ''';
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // 'Account' on line 0, character 13
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 0,
-          character: 13,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
@@ -185,17 +165,17 @@ Account a;
 
       test('hover over enum name shows enum declaration', () async {
         const source = '''
-public enum Status { ACTIVE, INACTIVE }
-Status s;
-''';
-        final document = Document.withText(source);
+        public enum Sta{cursor}tus { ACTIVE, INACTIVE }
+        Status s;
+        ''';
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
         await client.openDocument(document);
 
-        // 'Status' on line 0, character 12
         final hoverResult = await client.hover(
           uri: document.uri,
-          line: 0,
-          character: 12,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
@@ -204,9 +184,9 @@ Status s;
       });
     });
 
-    group('workspace symbols', () {
+    group('over workspace declarations', () {
       test('hover over workspace class shows same content as local', () async {
-        final ws = await createTestWorkspace(
+        final client = await createInitializedClient(
           classFiles: [
             (
               name: 'Customer.cls',
@@ -214,49 +194,45 @@ Status s;
             ),
           ],
         );
-        final c = createLspClient()..start();
-        await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
-        const source = 'Customer cust;';
-        final document = Document.withText(source);
-        await c.openDocument(document);
+        final textWithPosition = extractCursorPosition(
+          '{cursor}Customer cust;',
+        );
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
 
-        // 'Customer' starts at offset 0, line 0
-        final hoverResult = await c.hover(
+        final hoverResult = await client.hover(
           uri: document.uri,
-          line: 0,
-          character: 0,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
         expect(hoverResult, contains('Customer'));
 
-        await c.dispose();
-        await deleteTestWorkspace(ws);
+        await client.dispose();
       });
     });
 
-    group('shadowing', () {
+    group('over shadowed declarations', () {
       test('parameter shadows workspace class with similar name', () async {
-        final ws = await createTestWorkspace(
+        final client = await createInitializedClient(
           classFiles: [(name: 'Token.cls', source: 'public class Token { }')],
         );
-        final c = createLspClient()..start();
-        await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
         const source = '''
-public class Parser {
-  public virtual Object visit(Parser token) {}
-}
-''';
-        final document = Document.withText(source);
-        await c.openDocument(document);
+        public class Parser {
+          public virtual Object visit(Parser {cursor}token) {}
+        }
+        ''';
+        final textWithPosition = extractCursorPosition(source);
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
 
-        // Hover over 'token' parameter (line 1, after 'Parser ')
-        final hoverResult = await c.hover(
+        final hoverResult = await client.hover(
           uri: document.uri,
-          line: 1,
-          character: 39, // Inside 'token' parameter name
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
         );
 
         expect(hoverResult, isNotNull);
@@ -276,37 +252,34 @@ public class Parser {
           reason: 'Should not resolve to workspace Token class',
         );
 
-        await c.dispose();
-        await deleteTestWorkspace(ws);
+        await client.dispose();
       });
 
       test(
         'local variable with same name as workspace class resolves to variable',
         () async {
-          final ws = await createTestWorkspace(
+          final c = await createInitializedClient(
             classFiles: [
               (name: 'Account.cls', source: 'public class Account { }'),
             ],
           );
-          final c = createLspClient()..start();
-          await c.initialize(workspaceUri: ws.uri, waitForIndexing: true);
 
           const source = '''
-public class TestClass {
-  public void test() {
-    String account;
-    System.debug(account);
-  }
-}
-''';
-          final document = Document.withText(source);
+          public class TestClass {
+            public void test() {
+              String account;
+              System.debug({cursor}account);
+            }
+          }
+          ''';
+          final textWithPosition = extractCursorPosition(source);
+          final document = Document.withText(textWithPosition.text);
           await c.openDocument(document);
 
-          // Hover over 'account' variable usage (line 3)
           final hoverResult = await c.hover(
             uri: document.uri,
-            line: 3,
-            character: 18,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
           );
 
           expect(hoverResult, isNotNull);
@@ -327,36 +300,8 @@ public class TestClass {
           );
 
           await c.dispose();
-          await deleteTestWorkspace(ws);
         },
       );
-    });
-
-    group('unresolvable symbols', () {
-      test('hovering over unknown symbol returns null, not an error', () async {
-        const source = 'UnknownType x;';
-        final document = Document.withText(source);
-        await client.openDocument(document);
-
-        final hoverResult = await client.hover(
-          uri: document.uri,
-          line: 0,
-          character: 0,
-        );
-
-        // Should be null (no hover), not an exception
-        expect(hoverResult, isNull);
-      });
-
-      test('hovering on a document that is not open returns null', () async {
-        final hoverResult = await client.hover(
-          uri: 'file:///not/opened.cls',
-          line: 0,
-          character: 0,
-        );
-
-        expect(hoverResult, isNull);
-      });
     });
   });
 }

@@ -14,8 +14,9 @@ void main() {
     late LspClient client;
 
     setUp(() async {
-      workspace = await createTestWorkspace();
-      client = createLspClient()..start();
+      final result = createLspClient();
+      client = result.client..start();
+      workspace = await createTestWorkspace(fileSystem: result.fileSystem);
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -24,7 +25,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test(
@@ -50,7 +50,10 @@ void main() {
     late LspClient client;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
       workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
         classFiles: [
           (
             name: 'Season.cls',
@@ -58,7 +61,6 @@ void main() {
           ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -67,7 +69,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('completes workspace enum name at top level', () async {
@@ -107,7 +108,10 @@ void main() {
     late LspClient client;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
       workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
         classFiles: [
           (
             name: 'ParentGreeter.cls',
@@ -120,7 +124,6 @@ void main() {
           ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -129,7 +132,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('completes workspace interface name at top level', () async {
@@ -193,7 +195,10 @@ myVar.{cursor}''');
     late LspClient client;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
       workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
         classFiles: [
           (
             name: 'Animal.cls',
@@ -221,7 +226,6 @@ private class AnimalTest {
           ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -230,7 +234,6 @@ private class AnimalTest {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('completes workspace class name at top level', () async {
@@ -478,7 +481,10 @@ sample.{cursor}''');
     late LspClient client;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
       workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
         objectFiles: [
           (
             objectName: 'Account',
@@ -518,7 +524,6 @@ sample.{cursor}''');
           ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -527,7 +532,6 @@ sample.{cursor}''');
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('completes SObject name at top level', () async {
@@ -640,7 +644,10 @@ acc.{cursor}''');
     late LspClient client;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
       workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
         classFiles: [
           for (var i = 0; i < 30; i++)
             (
@@ -649,7 +656,6 @@ acc.{cursor}''');
             ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -658,7 +664,6 @@ acc.{cursor}''');
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('finds type not in initial top 25 after narrowing prefix', () async {
@@ -681,7 +686,10 @@ acc.{cursor}''');
     late LspClient client;
 
     setUp(() async {
+      final result = createLspClient();
+      client = result.client..start();
       workspace = await createTestWorkspace(
+        fileSystem: result.fileSystem,
         classFiles: [
           (
             name: 'Season.cls',
@@ -703,7 +711,6 @@ public class Animal {
           ),
         ],
       );
-      client = createLspClient()..start();
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -712,7 +719,6 @@ public class Animal {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('workspace class has classKind and "Class" detail', () async {

@@ -4,6 +4,7 @@ import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/server.dart';
 
 import 'lsp_test_harness.dart';
+import 'test_workspace.dart';
 
 final class Document {
   final String uri;
@@ -23,11 +24,18 @@ final class LspClient {
   final InMemoryByteSink sink;
   final InMemoryLspInput input;
   final Server server;
+  // TODO: Make required when refactoring is done
+  final TestWorkspace? workspace;
 
   int _nextId = 1;
   Future<void>? _serverTask;
 
-  LspClient({required this.sink, required this.input, required this.server});
+  LspClient({
+    required this.sink,
+    required this.input,
+    required this.server,
+    this.workspace,
+  });
 
   /// Starts the server loop in the background.
   void start() {
@@ -39,15 +47,23 @@ final class LspClient {
   /// When [waitForIndexing] is true, waits for the `$/progress` end
   /// notification before returning — proving that indexing completed.
   Future<InitializeResult> initialize({
-    required Uri workspaceUri,
+    // TODO: This won't be necessary when refactoring is done
+    Uri? workspaceUri,
     bool waitForIndexing = true,
   }) async {
+    assert(
+      workspace != null || workspaceUri != null,
+      'Must provide either a workspace or workspaceUri',
+    );
+
+    final resolvedWorkspaceUri = workspaceUri ?? workspace!.uri;
+
     final id = _nextId++;
     input.addFrame(
       jsonRpcInitialize(
         id: id,
         workspaceFolders: [
-          {'uri': workspaceUri.toString(), 'name': 'workspace'},
+          {'uri': resolvedWorkspaceUri.toString(), 'name': 'workspace'},
         ],
       ),
     );

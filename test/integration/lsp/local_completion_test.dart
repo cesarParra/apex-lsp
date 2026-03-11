@@ -15,8 +15,9 @@ void main() {
     late LspClient client;
 
     setUp(() async {
-      workspace = await createTestWorkspace();
-      client = createLspClient()..start();
+      final result = createLspClient();
+      client = result.client..start();
+      workspace = await createTestWorkspace(fileSystem: result.fileSystem);
       await client.initialize(
         workspaceUri: workspace.uri,
         waitForIndexing: true,
@@ -25,7 +26,6 @@ void main() {
 
     tearDown(() async {
       await client.dispose();
-      await deleteTestWorkspace(workspace);
     });
 
     test('completes local variables', () async {
