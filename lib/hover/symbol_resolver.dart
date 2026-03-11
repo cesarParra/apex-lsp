@@ -1,5 +1,5 @@
-import 'package:apex_lsp/completion/completion_context.dart';
 import 'package:apex_lsp/completion/helpers.dart';
+import 'package:apex_lsp/context/symbol_context.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/type_name.dart';
 
@@ -48,7 +48,7 @@ final class ResolvedEnumValue extends ResolvedSymbol {
 
 /// Resolves the symbol at [cursorOffset] within [text] using [index].
 ///
-/// Delegates to [detectCompletionContext] with [extractFullIdentifier] to
+/// Delegates to [detectSymbolContext] with [extractIdentifierAtCursor] to
 /// determine whether the cursor is on a standalone identifier or a
 /// dot-qualified member access, then resolves the appropriate declaration.
 ///
@@ -67,25 +67,22 @@ Future<ResolvedSymbol?> resolveSymbolAt({
   final enclosing = index.enclosingAt<Declaration>(cursorOffset);
   final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
 
-  final context = await detectCompletionContext(
+  final context = await detectSymbolContext(
     text: text,
     cursorOffset: cursorOffset,
     index: expandedIndex,
-    extractIdentifier: extractFullIdentifier,
+    extractIdentifier: extractIdentifierAtCursor,
   );
 
   return switch (context) {
-    CompletionContextNone() => null,
-    CompletionContextTopLevel(:final prefix) => _resolveTopLevel(
+    SymbolContextNone() => null,
+    SymbolContextTopLevel(:final prefix) => _resolveTopLevel(
       prefix,
       cursorOffset,
       expandedIndex,
     ),
-    CompletionContextMember(:final prefix, :final typeName) => _resolveMember(
-      prefix,
-      typeName,
-      expandedIndex,
-    ),
+    SymbolContextMember(:final prefix, :final typeName, :final objectName) =>
+      _resolveMember(prefix, typeName, objectName, cursorOffset, expandedIndex),
   };
 }
 
@@ -121,6 +118,12 @@ ResolvedSymbol? _resolveTopLevel(
     if (result != null) return result;
   }
 
+  final enclosingInterface = index.enclosingAt<IndexedInterface>(cursorOffset);
+  if (enclosingInterface != null) {
+    final result = _findMemberInType(enclosingInterface, name);
+    if (result != null) return result;
+  }
+
   // Top-level types (classes, enums, interfaces, sobjects).
   final type = index.findType(name);
   if (type != null) return ResolvedType(type);
@@ -141,9 +144,24 @@ ResolvedSymbol? _resolveTopLevel(
 ResolvedSymbol? _resolveMember(
   String identifier,
   String? typeName,
+  String? objectName,
+  int cursorOffset,
   List<Declaration> index,
 ) {
   if (identifier.isEmpty || typeName == null) return null;
+
+  final object = objectName != null ? DeclarationName(objectName) : null;
+
+  if (object != null) {
+    final variablesWithName = index
+        .whereType<IndexedVariable>()
+        .where((v) => v.name == object)
+        .toList();
+    final hasInvisibleVariable =
+        variablesWithName.isNotEmpty &&
+        variablesWithName.every((v) => !v.isVisibleAt(cursorOffset));
+    if (hasInvisibleVariable) return null;
+  }
 
   final resolvedType = _resolveType(typeName, index);
   if (resolvedType == null) return null;

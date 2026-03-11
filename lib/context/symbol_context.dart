@@ -2,55 +2,32 @@ import 'package:apex_lsp/completion/helpers.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/type_name.dart';
 
-/// Base class for completion context types.
+/// Base class for symbol lookup context types.
 ///
-/// Completion context represents the syntactic location where code completion
-/// was triggered, determining what kind of suggestions are appropriate.
-///
-/// See also:
-///  * [CompletionContextNone], when no valid completion context is detected.
-///  * [CompletionContextTopLevel], for top-level type and variable completions.
-///  * [CompletionContextMember], for member access completions.
-sealed class CompletionContext {
-  /// The partial identifier prefix being typed at the cursor position.
-  ///
-  /// Used for filtering and ranking completion candidates.
+/// Symbol context represents the syntactic location where a language feature
+/// was triggered, determining what kind of symbol lookup is appropriate.
+sealed class SymbolContext {
+  /// The identifier text at the cursor position.
   final String prefix;
-  const CompletionContext({required this.prefix});
+  const SymbolContext({required this.prefix});
 }
 
-/// Completion context indicating no valid completion location.
+/// Symbol context indicating no valid lookup location.
 ///
-/// This occurs when the cursor is in a position where code completion
-/// doesn't make sense, such as inside string literals or comments.
-///
-/// Example scenarios:
-/// ```dart
-/// // Cursor inside a string literal
-/// String name = "test|";  // | = cursor
-/// ```
-final class CompletionContextNone extends CompletionContext {
-  const CompletionContextNone() : super(prefix: '');
+/// This occurs when the cursor is in a position where symbol lookup does not
+/// apply, such as inside string literals or comments.
+final class SymbolContextNone extends SymbolContext {
+  const SymbolContextNone() : super(prefix: '');
 
   @override
   String toString() {
-    return 'CompletionContextNone()';
+    return 'SymbolContextNone()';
   }
 }
 
-/// Completion context for top-level type names and local variables.
-///
-/// This context applies when the cursor is in a position where type names,
-/// local variables, or method names can appear, but not after a dot operator.
-///
-/// Example scenarios:
-/// ```dart
-/// Acc|  // Type name completion
-/// accountList.|  // Before the dot (not this context)
-/// String name = acc|  // Variable name completion
-/// ```
-final class CompletionContextTopLevel extends CompletionContext {
-  const CompletionContextTopLevel({
+/// Symbol context for top-level type names and local variables.
+final class SymbolContextTopLevel extends SymbolContext {
+  const SymbolContextTopLevel({
     required super.prefix,
     required this.text,
     required this.cursorOffset,
@@ -64,23 +41,13 @@ final class CompletionContextTopLevel extends CompletionContext {
 
   @override
   String toString() {
-    return 'CompletionContextClass(className: $prefix)';
+    return 'SymbolContextTopLevel(prefix: $prefix)';
   }
 }
 
-/// Completion context for member access via dot operator.
-///
-/// This context applies when the cursor follows a dot (`.`) or safe navigation
-/// (`?.`) operator, indicating member access on an object or type.
-///
-/// Example scenarios:
-/// ```dart
-/// account.|  // Instance member access
-/// Account.|  // Static member access or enum values
-/// Colors.R|  // Enum value completion with prefix 'R'
-/// ```
-final class CompletionContextMember extends CompletionContext {
-  const CompletionContextMember({
+/// Symbol context for member access via dot operator.
+final class SymbolContextMember extends SymbolContext {
+  const SymbolContextMember({
     required this.objectName,
     required this.typeName,
     required super.prefix,
@@ -102,24 +69,24 @@ final class CompletionContextMember extends CompletionContext {
 
   @override
   String toString() {
-    return 'CompletionContextMember(objectName: $objectName, typeName: $typeName, prefix: $prefix, text: $text, cursorOffset: $cursorOffset)';
+    return 'SymbolContextMember(objectName: $objectName, typeName: $typeName, prefix: $prefix, text: $text, cursorOffset: $cursorOffset)';
   }
 }
 
-/// Determines the completion context at the cursor position in [text].
+/// Determines the symbol context at the cursor position in [text].
 ///
 /// Uses the [index] to resolve variable types and type names when detecting
 /// member-access contexts (e.g. `account.`).
 ///
 /// The [extractIdentifier] parameter controls how the identifier at the cursor
-/// is extracted. Defaults to [extractPrefix] (backward scan only), which is
-/// appropriate for completion. Pass [extractFullIdentifier] for hover, where
+/// is extracted. Defaults to [extractIdentifierPrefix] (backward scan only), which is
+/// appropriate for completion. Pass [extractIdentifierAtCursor] for hover, where
 /// the entire word under the cursor is needed.
-Future<CompletionContext> detectCompletionContext({
+Future<SymbolContext> detectSymbolContext({
   required String text,
   required int cursorOffset,
   required List<Declaration> index,
-  IdentifierExtractor extractIdentifier = extractPrefix,
+  IdentifierExtractor extractIdentifier = extractIdentifierPrefix,
 }) async {
   final extracted = extractIdentifier(text, cursorOffset);
   final identifier = extracted.value;
@@ -150,13 +117,13 @@ Future<CompletionContext> detectCompletionContext({
     }
     final objectName = _extractIdentifierBefore(text, objectIndex);
     if (objectName == null) {
-      return CompletionContextNone();
+      return SymbolContextNone();
     }
 
     if (DeclarationName(objectName) == const DeclarationName('this')) {
       final enclosingClass = index.enclosingAt<IndexedClass>(cursorOffset);
 
-      return CompletionContextMember(
+      return SymbolContextMember(
         typeName: enclosingClass?.name.value,
         objectName: objectName,
         prefix: identifier,
@@ -169,7 +136,7 @@ Future<CompletionContext> detectCompletionContext({
         index.findDeclaration(DeclarationName(objectName)) ??
         index.resolveQualifiedName(objectName);
 
-    return CompletionContextMember(
+    return SymbolContextMember(
       typeName: switch (declaration) {
         null => null,
         ConstructorDeclaration() => throw UnsupportedError(
@@ -197,7 +164,7 @@ Future<CompletionContext> detectCompletionContext({
     );
   }
 
-  return CompletionContextTopLevel(
+  return SymbolContextTopLevel(
     prefix: identifier,
     text: text,
     cursorOffset: cursorOffset,

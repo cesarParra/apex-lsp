@@ -576,6 +576,40 @@ void main() {
         expect(resolved.field.name.value, equals('Industry'));
         expect(resolved.parentType?.name.value, equals('Account'));
       });
+
+      test(
+        'returns null when receiver variable is declared after usage',
+        () async {
+          const text = 'cust.fullName; Customer cust;';
+          final cursorOffset = text.indexOf('fullName');
+          final customerClass = IndexedClass(
+            DeclarationName('Customer'),
+            visibility: AlwaysVisible(),
+            members: [
+              FieldMember(
+                DeclarationName('fullName'),
+                isStatic: false,
+                typeName: DeclarationName('String'),
+                visibility: AlwaysVisible(),
+              ),
+            ],
+          );
+          final custVar = IndexedVariable(
+            DeclarationName('cust'),
+            typeName: DeclarationName('Customer'),
+            location: (24, 28),
+          );
+          final index = <Declaration>[customerClass, custVar];
+
+          final result = await resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: index,
+          );
+
+          expect(result, isNull);
+        },
+      );
     });
 
     group('shadowing and name resolution priority', () {
@@ -745,6 +779,37 @@ void main() {
           );
         },
       );
+
+      test('resolves interface method in enclosing interface', () async {
+        const text = 'public interface I { void doWork(); }';
+        final cursorOffset = text.indexOf('doWork');
+        final interfaceDecl = IndexedInterface(
+          DeclarationName('I'),
+          visibility: AlwaysVisible(),
+          location: (0, text.length),
+          extendedInterfaces: [],
+          methods: [
+            MethodDeclaration.withoutBody(
+              DeclarationName('doWork'),
+              isStatic: false,
+              visibility: AlwaysVisible(),
+              returnType: 'void',
+            ),
+          ],
+        );
+        final index = <Declaration>[interfaceDecl];
+
+        final result = await resolveSymbolAt(
+          cursorOffset: cursorOffset,
+          text: text,
+          index: index,
+        );
+
+        expect(result, isA<ResolvedMethod>());
+        final resolved = result as ResolvedMethod;
+        expect(resolved.method.name.value, equals('doWork'));
+        expect(resolved.parentType?.name.value, equals('I'));
+      });
     });
 
     group('edge cases', () {

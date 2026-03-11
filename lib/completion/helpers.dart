@@ -138,9 +138,9 @@ typedef ExtractedIdentifier = ({String value, int startOffset});
 /// A function that extracts an identifier from [text] at [cursorOffset].
 ///
 /// Different strategies are used depending on the consumer:
-/// - [extractPrefix] scans backward only (for completion, where only the
+/// - [extractIdentifierPrefix] scans backward only (for completion, where only the
 ///   text already typed matters).
-/// - [extractFullIdentifier] scans in both directions (for hover, where the
+/// - [extractIdentifierAtCursor] scans in both directions (for hover, where the
 ///   entire word under the cursor is needed).
 typedef IdentifierExtractor =
     ExtractedIdentifier Function(String text, int cursorOffset);
@@ -149,7 +149,7 @@ typedef IdentifierExtractor =
 ///
 /// Used by the completion system, where only the already-typed portion
 /// matters for filtering candidates.
-ExtractedIdentifier extractPrefix(String text, int cursorOffset) {
+ExtractedIdentifier extractIdentifierPrefix(String text, int cursorOffset) {
   final value = text.extractIndentifierPrefixAt(cursorOffset);
   return (value: value, startOffset: cursorOffset - value.length);
 }
@@ -158,7 +158,7 @@ ExtractedIdentifier extractPrefix(String text, int cursorOffset) {
 ///
 /// Used by the hover system, where the entire word the cursor is touching
 /// is needed for exact-match resolution.
-ExtractedIdentifier extractFullIdentifier(String text, int cursorOffset) {
+ExtractedIdentifier extractIdentifierAtCursor(String text, int cursorOffset) {
   if (text.isEmpty) return (value: '', startOffset: cursorOffset);
 
   final offset = cursorOffset.clamp(0, text.length - 1).toInt();
