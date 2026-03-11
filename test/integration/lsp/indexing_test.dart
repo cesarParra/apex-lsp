@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 import '../../support/cursor_utils.dart';
 import '../../support/lsp_matchers.dart';
 import '../../support/lsp_client.dart';
-import '../../support/test_workspace.dart';
+
 import '../integration_server.dart';
 
 void main() {
@@ -29,34 +29,24 @@ void main() {
       await client.dispose();
     });
 
-    test('restart with no source changes does not re-index files', () async {
+    test('a restart with no source changes does not re-index files', () async {
       final fileSystem = MemoryFileSystem();
-      final workspace = await createTestWorkspace(
+      final firstClient = await createInitializedClient(
         fileSystem: fileSystem,
         classFiles: [(name: 'Greeter.cls', source: 'public class Greeter {}')],
-      );
-
-      // First run -- builds the index.
-      final firstResult = createLspClient(fileSystem: fileSystem);
-      final firstClient = firstResult.client..start();
-      await firstClient.initialize(
-        workspaceUri: workspace.uri,
-        waitForIndexing: true,
       );
       await firstClient.dispose();
 
       final jsonFile = fileSystem.file(
-        '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName/Greeter.json',
+        '${firstClient.workspace!.directory.path}/$indexRootFolderName/$apexIndexFolderName/Greeter.json',
       );
       final modifiedAfterFirstRun = jsonFile.lastModifiedSync();
 
       // Second run -- nothing changed, so Greeter.json should be untouched.
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      final secondResult = createLspClient(fileSystem: fileSystem);
-      final secondClient = secondResult.client..start();
-      await secondClient.initialize(
-        workspaceUri: workspace.uri,
-        waitForIndexing: true,
+      final secondClient = await createInitializedClient(
+        fileSystem: fileSystem,
+        workspace: firstClient.workspace,
       );
       await secondClient.dispose();
 
@@ -69,31 +59,23 @@ void main() {
     });
 
     test(
-      'restart after modifying one file re-indexes only the changed file',
+      'a restart after modifying one file re-indexes only the changed file',
       () async {
         final fileSystem = MemoryFileSystem();
-        final workspace = await createTestWorkspace(
+        final firstClient = await createInitializedClient(
           fileSystem: fileSystem,
           classFiles: [
             (name: 'Alpha.cls', source: 'public class Alpha {}'),
             (name: 'Beta.cls', source: 'public class Beta {}'),
           ],
         );
-
-        // First run.
-        final firstResult = createLspClient(fileSystem: fileSystem);
-        final firstClient = firstResult.client..start();
-        await firstClient.initialize(
-          workspaceUri: workspace.uri,
-          waitForIndexing: true,
-        );
         await firstClient.dispose();
 
         final alphaJson = fileSystem.file(
-          '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName/Alpha.json',
+          '${firstClient.workspace!.directory.path}/$indexRootFolderName/$apexIndexFolderName/Alpha.json',
         );
         final betaJson = fileSystem.file(
-          '${workspace.directory.path}/$indexRootFolderName/$apexIndexFolderName/Beta.json',
+          '${firstClient.workspace!.directory.path}/$indexRootFolderName/$apexIndexFolderName/Beta.json',
         );
         final alphaModified = alphaJson.lastModifiedSync();
         final betaModified = betaJson.lastModifiedSync();
@@ -102,15 +84,12 @@ void main() {
         // a distinct modification timestamp.
         await Future<void>.delayed(const Duration(milliseconds: 1100));
         await fileSystem
-            .file('${workspace.classesPath}/Beta.cls')
+            .file('${firstClient.workspace!.classesPath}/Beta.cls')
             .writeAsString('public class Beta { public String name; }');
 
-        // Second run.
-        final secondResult = createLspClient(fileSystem: fileSystem);
-        final secondClient = secondResult.client..start();
-        await secondClient.initialize(
-          workspaceUri: workspace.uri,
-          waitForIndexing: true,
+        final secondClient = await createInitializedClient(
+          fileSystem: fileSystem,
+          workspace: firstClient.workspace,
         );
         await secondClient.dispose();
 
@@ -131,31 +110,21 @@ void main() {
       'workspace completions still work when the index is loaded from a prior run',
       () async {
         final fileSystem = MemoryFileSystem();
-        final workspace = await createTestWorkspace(
-          fileSystem: fileSystem,
-          classFiles: [
-            (
-              name: 'Season.cls',
-              source: 'public enum Season { SPRING, SUMMER }',
-            ),
-          ],
-        );
+        const classFiles = [
+          (name: 'Season.cls', source: 'public enum Season { SPRING, SUMMER }'),
+        ];
 
         // First run -- builds index.
-        final firstResult = createLspClient(fileSystem: fileSystem);
-        final firstClient = firstResult.client..start();
-        await firstClient.initialize(
-          workspaceUri: workspace.uri,
-          waitForIndexing: true,
+        final firstClient = await createInitializedClient(
+          fileSystem: fileSystem,
+          classFiles: classFiles,
         );
         await firstClient.dispose();
 
         // Second run -- index already exists, should be reused.
-        final secondResult = createLspClient(fileSystem: fileSystem);
-        final secondClient = secondResult.client..start();
-        await secondClient.initialize(
-          workspaceUri: workspace.uri,
-          waitForIndexing: true,
+        final secondClient = await createInitializedClient(
+          fileSystem: fileSystem,
+          workspace: firstClient.workspace,
         );
 
         final textWithPosition = extractCursorPosition('Sea{cursor}');
