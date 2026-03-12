@@ -303,5 +303,104 @@ void main() {
         },
       );
     });
+
+    group('over dot-qualified members', () {
+      test('hover over workspace class static method via dot', () async {
+        final client = await createInitializedClient(
+          classFiles: [
+            (
+              name: 'MyUtils.cls',
+              source:
+                  'public class MyUtils { public static void doWork(String input) {} }',
+            ),
+          ],
+        );
+
+        final textWithPosition = extractCursorPosition(
+          'MyUtils.do{cursor}Work();',
+        );
+        final document = Document.withText(textWithPosition.text);
+        await client.openDocument(document);
+
+        final hoverResult = await client.hover(
+          uri: document.uri,
+          line: textWithPosition.position.line,
+          character: textWithPosition.position.character,
+        );
+
+        expect(hoverResult, isNotNull);
+        expect(hoverResult, contains('doWork'));
+        expect(hoverResult, contains('MyUtils'));
+
+        await client.dispose();
+      });
+
+      test(
+        'hover over workspace class instance field via variable dot',
+        () async {
+          final client = await createInitializedClient(
+            classFiles: [
+              (
+                name: 'Customer.cls',
+                source: 'public class Customer { public String fullName; }',
+              ),
+            ],
+          );
+
+          const source = '''
+        public class TestClass {
+          public void test() {
+            Customer cust;
+            System.debug(cust.full{cursor}Name);
+          }
+        }
+        ''';
+          final textWithPosition = extractCursorPosition(source);
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final hoverResult = await client.hover(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(hoverResult, isNotNull);
+          expect(hoverResult, contains('fullName'));
+          expect(hoverResult, contains('Customer'));
+
+          await client.dispose();
+        },
+      );
+    });
+
+    test('avoids false positives', () async {
+      final client = await createInitializedClient(
+        classFiles: [
+          (
+            name: 'AccountTest.cls',
+            source:
+                'public class AccountTest { private static void test() {} }',
+          ),
+        ],
+      );
+
+      final source = '''
+      if (Te{cursor}st.isRunningTest()) {System.debug('test');};
+      ''';
+      final textWithPosition = extractCursorPosition(source);
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final hoverResult = await client.hover(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(hoverResult, isNull);
+
+      await client.dispose();
+    });
   });
 }

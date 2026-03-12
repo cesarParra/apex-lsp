@@ -4,6 +4,85 @@ import 'package:apex_lsp/type_name.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('extractIdentifierAtCursor', () {
+    test('extracts identifier when cursor is at the start', () {
+      const text = 'myVariable = null;';
+      final result = extractIdentifierAtCursor(text, 0);
+
+      expect(result.value, equals('myVariable'));
+      expect(result.startOffset, equals(0));
+    });
+
+    test('extracts identifier when cursor is in the middle', () {
+      const text = 'myVariable = null;';
+      final result = extractIdentifierAtCursor(text, 4);
+
+      expect(result.value, equals('myVariable'));
+      expect(result.startOffset, equals(0));
+    });
+
+    test('extracts identifier when cursor is at the end', () {
+      const text = 'myVariable = null;';
+      final result = extractIdentifierAtCursor(text, 9);
+
+      expect(result.value, equals('myVariable'));
+      expect(result.startOffset, equals(0));
+    });
+
+    test('returns empty for whitespace', () {
+      const text = '  ';
+      final result = extractIdentifierAtCursor(text, 1);
+
+      expect(result.value, isEmpty);
+    });
+
+    test('returns empty for empty text', () {
+      final result = extractIdentifierAtCursor('', 0);
+
+      expect(result.value, isEmpty);
+    });
+
+    test('does not cross dot boundaries', () {
+      const text = 'Foo.bar';
+      final resultOnBar = extractIdentifierAtCursor(text, 5);
+
+      expect(resultOnBar.value, equals('bar'));
+      expect(resultOnBar.startOffset, equals(4));
+
+      final resultOnFoo = extractIdentifierAtCursor(text, 1);
+
+      expect(resultOnFoo.value, equals('Foo'));
+      expect(resultOnFoo.startOffset, equals(0));
+    });
+
+    test('falls back one position left when cursor is on non-identifier', () {
+      const text = 'myVar;';
+      // Cursor on ';'
+      final result = extractIdentifierAtCursor(text, 5);
+
+      expect(result.value, equals('myVar'));
+      expect(result.startOffset, equals(0));
+    });
+  });
+
+  group('extractIdentifierPrefix', () {
+    test('extracts prefix before cursor', () {
+      const text = 'myVariable = null;';
+      final result = extractIdentifierPrefix(text, 4);
+
+      expect(result.value, equals('myVa'));
+      expect(result.startOffset, equals(0));
+    });
+
+    test('returns empty when cursor is at start of identifier', () {
+      const text = 'myVariable';
+      final result = extractIdentifierPrefix(text, 0);
+
+      expect(result.value, isEmpty);
+      expect(result.startOffset, equals(0));
+    });
+  });
+
   group('getBodyDeclarations', () {
     test('returns empty list for null', () {
       expect(getBodyDeclarations(null), isEmpty);

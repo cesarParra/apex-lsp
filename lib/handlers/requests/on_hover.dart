@@ -26,7 +26,7 @@ Future<Hover?> onHover({
     character: params.position.character,
   );
 
-  final resolved = resolveSymbolAt(
+  final resolved = await resolveSymbolAt(
     cursorOffset: cursorOffset,
     text: openDocumentText,
     index: index,

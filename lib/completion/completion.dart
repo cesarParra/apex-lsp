@@ -1,6 +1,6 @@
 import 'package:apex_lsp/completion/apex_keywords.dart';
-import 'package:apex_lsp/completion/completion_context.dart';
 import 'package:apex_lsp/completion/helpers.dart';
+import 'package:apex_lsp/context/symbol_context.dart';
 import 'package:apex_lsp/completion/rank.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/message.dart';
@@ -71,15 +71,12 @@ final class KeywordCandidate extends CompletionCandidate {
 
 /// A function that produces completion candidates for a given context.
 ///
-/// Each data source is a pure function — given the current [CompletionContext]
+/// Each data source is a pure function, given the current [SymbolContext]
 /// and [cursorOffset], it returns whatever candidates it can contribute.
 /// Multiple sources are composed by the caller, who assembles exactly the
 /// combination needed (e.g. declarations only, keywords only, or both).
 typedef CompletionDataSource =
-    List<CompletionCandidate> Function(
-      CompletionContext context,
-      int cursorOffset,
-    );
+    List<CompletionCandidate> Function(SymbolContext context, int cursorOffset);
 
 /// Returns a [CompletionDataSource] that contributes candidates from [index].
 ///
@@ -88,17 +85,17 @@ typedef CompletionDataSource =
 /// caller before passing it here).
 ///
 /// Handles both top-level and member-access contexts:
-/// - [CompletionContextTopLevel]: maps visible declarations to the appropriate
+/// - [SymbolContextTopLevel]: maps visible declarations to the appropriate
 ///   candidate subtype ([ApexTypeCandidate], [LocalVariableCandidate],
 ///   [MemberCandidate]).
-/// - [CompletionContextMember]: resolves the type before the dot and returns
+/// - [SymbolContextMember]: resolves the type before the dot and returns
 ///   its members.
-/// - [CompletionContextNone]: returns empty.
+/// - [SymbolContextNone]: returns empty.
 CompletionDataSource declarationSource(List<Declaration> index) =>
     (context, cursorOffset) => switch (context) {
-      CompletionContextNone() => <CompletionCandidate>[],
-      CompletionContextTopLevel() => _topLevelCandidates(index, cursorOffset),
-      CompletionContextMember() => _memberCandidates(
+      SymbolContextNone() => <CompletionCandidate>[],
+      SymbolContextTopLevel() => _topLevelCandidates(index, cursorOffset),
+      SymbolContextMember() => _memberCandidates(
         index,
         cursorOffset,
         context.typeName,
@@ -108,14 +105,13 @@ CompletionDataSource declarationSource(List<Declaration> index) =>
 
 /// A [CompletionDataSource] that contributes all Apex reserved keywords.
 ///
-/// Keywords are only offered for [CompletionContextTopLevel] — they never
+/// Keywords are only offered for [SymbolContextTopLevel], they never
 /// appear after a dot operator since `foo.for` is never valid Apex.
 List<CompletionCandidate> keywordSource(
-  CompletionContext context,
+  SymbolContext context,
   int cursorOffset,
 ) => switch (context) {
-  CompletionContextTopLevel() =>
-    apexKeywords.map(KeywordCandidate.new).toList(),
+  SymbolContextTopLevel() => apexKeywords.map(KeywordCandidate.new).toList(),
   _ => <CompletionCandidate>[],
 };
 
@@ -330,7 +326,7 @@ Future<CompletionList> onCompletion({
     character: position.character,
   );
 
-  final context = await detectCompletionContext(
+  final context = await detectSymbolContext(
     text: text,
     cursorOffset: cursorOffset,
     index: index,
@@ -361,7 +357,7 @@ Future<CompletionList> onCompletion({
 
 List<CompletionCandidate> retrieveCompletionCandidates(
   List<CompletionDataSource> sources,
-  CompletionContext context,
+  SymbolContext context,
   int cursorOffset,
   int earlyStopLimit,
 ) {
@@ -379,11 +375,8 @@ List<CompletionCandidate> retrieveCompletionCandidates(
 /// comparison for local variables and keywords.
 ///
 /// Returns `true` if the candidate's name starts with the context prefix,
-/// `false` otherwise. Always returns `false` for [CompletionContextNone].
-bool potentiallyMatches(
-  CompletionContext context,
-  CompletionCandidate candidate,
-) {
+/// `false` otherwise. Always returns `false` for [SymbolContextNone].
+bool potentiallyMatches(SymbolContext context, CompletionCandidate candidate) {
   bool nameStartsWith(String prefix) {
     return switch (candidate) {
       ApexTypeCandidate(:final type) => type.name.startsWith(prefix),
@@ -396,9 +389,9 @@ bool potentiallyMatches(
   }
 
   return switch (context) {
-    CompletionContextNone() => false,
-    CompletionContextTopLevel(:final prefix) ||
-    CompletionContextMember(:final prefix) => nameStartsWith(prefix),
+    SymbolContextNone() => false,
+    SymbolContextTopLevel(:final prefix) ||
+    SymbolContextMember(:final prefix) => nameStartsWith(prefix),
   };
 }
 
