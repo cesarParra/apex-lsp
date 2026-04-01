@@ -1079,5 +1079,62 @@ a.{cursor}''');
         }
       });
     });
+
+    group('call chaining', () {
+      test(
+        'completes members of the return type after a chained method call',
+        () async {
+          final textWithPosition = extractCursorPosition('''
+public class MyService {
+  public Account getAccount() {
+    return new Account();
+  }
+}
+public class Account {
+  public String Name;
+}
+MyService svc = new MyService();
+svc.getAccount().{cursor}''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('Name'));
+        },
+      );
+
+      test(
+        'completes members after multi-level chained method calls',
+        () async {
+          final textWithPosition = extractCursorPosition('''
+public class C {
+  public String value;
+}
+public class B {
+  public C getC() { return new C(); }
+}
+public class A {
+  public B getB() { return new B(); }
+}
+A a = new A();
+a.getB().getC().{cursor}''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('value'));
+        },
+      );
+    });
   });
 }

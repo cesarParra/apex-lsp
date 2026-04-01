@@ -403,4 +403,40 @@ void main() {
       await client.dispose();
     });
   });
+
+  group('call chaining', () {
+    late LspClient client;
+
+    setUp(() async {
+      client = await createInitializedClient();
+    });
+
+    tearDown(() async {
+      await client.dispose();
+    });
+
+    test('hovering a field accessed via a chained method call shows type', () async {
+      const source = '''
+public class MyService {
+  public Account getAccount() { return new Account(); }
+}
+public class Account {
+  public String Name;
+}
+MyService svc = new MyService();
+svc.getAccount().Na{cursor}me''';
+      final textWithPosition = extractCursorPosition(source);
+      final document = Document.withText(textWithPosition.text);
+      await client.openDocument(document);
+
+      final hoverResult = await client.hover(
+        uri: document.uri,
+        line: textWithPosition.position.line,
+        character: textWithPosition.position.character,
+      );
+
+      expect(hoverResult, isNotNull);
+      expect(hoverResult, contains('Name'));
+    });
+  });
 }

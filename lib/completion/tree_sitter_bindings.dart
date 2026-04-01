@@ -109,6 +109,19 @@ final class TreeSitterBindings {
             _ts_node_field_name_for_child_c,
             _ts_node_field_name_for_child_dart
           >('ts_node_field_name_for_child'),
+      ts_node_parent = _lib
+          .lookupFunction<_ts_node_parent_c, _ts_node_parent_dart>(
+            'ts_node_parent',
+          ),
+      ts_node_descendant_for_byte_range = _lib
+          .lookupFunction<
+            _ts_node_descendant_for_byte_range_c,
+            _ts_node_descendant_for_byte_range_dart
+          >('ts_node_descendant_for_byte_range'),
+      ts_node_is_null = _lib
+          .lookupFunction<_ts_node_is_null_c, _ts_node_is_null_dart>(
+            'ts_node_is_null',
+          ),
       tree_sitter_apex = _lib
           .lookupFunction<_tree_sitter_apex_c, _tree_sitter_apex_dart>(
             'tree_sitter_apex',
@@ -183,6 +196,9 @@ final class TreeSitterBindings {
   final _ts_node_end_byte_dart ts_node_end_byte;
   final _ts_node_child_by_field_name_dart ts_node_child_by_field_name;
   final _ts_node_field_name_for_child_dart ts_node_field_name_for_child;
+  final _ts_node_parent_dart ts_node_parent;
+  final _ts_node_descendant_for_byte_range_dart ts_node_descendant_for_byte_range;
+  final _ts_node_is_null_dart ts_node_is_null;
 
   // Apex language entrypoint.
   final _tree_sitter_apex_dart tree_sitter_apex;
@@ -252,6 +268,17 @@ typedef _ts_node_field_name_for_child_c =
     Pointer<Utf8> Function(TSNode, Uint32);
 typedef _ts_node_field_name_for_child_dart =
     Pointer<Utf8> Function(TSNode, int);
+
+typedef _ts_node_parent_c = TSNode Function(TSNode);
+typedef _ts_node_parent_dart = TSNode Function(TSNode);
+
+typedef _ts_node_descendant_for_byte_range_c =
+    TSNode Function(TSNode, Uint32, Uint32);
+typedef _ts_node_descendant_for_byte_range_dart =
+    TSNode Function(TSNode, int, int);
+
+typedef _ts_node_is_null_c = Uint8 Function(TSNode);
+typedef _ts_node_is_null_dart = int Function(TSNode);
 
 typedef _tree_sitter_apex_c = Pointer<TSLanguage> Function();
 typedef _tree_sitter_apex_dart = Pointer<TSLanguage> Function();

@@ -1,5 +1,8 @@
+import 'dart:ffi';
+
 import 'package:apex_lsp/completion/apex_keywords.dart';
 import 'package:apex_lsp/completion/helpers.dart';
+import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
 import 'package:apex_lsp/context/symbol_context.dart';
 import 'package:apex_lsp/completion/rank.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
@@ -315,6 +318,8 @@ Future<CompletionList> onCompletion({
   required List<Declaration> index,
   List<CompletionDataSource> sources = const [],
   Rank rank = rankCandidates,
+  TreeSitterBindings? bindings,
+  Pointer<TSTree>? tree,
 }) async {
   if (text == null) {
     return CompletionList(isIncomplete: false, items: <CompletionItem>[]);
@@ -330,6 +335,8 @@ Future<CompletionList> onCompletion({
     text: text,
     cursorOffset: cursorOffset,
     index: index,
+    bindings: bindings,
+    tree: tree,
   );
 
   final prefix = context.prefix;

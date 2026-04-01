@@ -36,18 +36,17 @@ typedef DeclarationBuilder<T extends Declaration> =
 ///  * [ApexIndexer], which indexes workspace files persistently.
 ///  * [TreeSitterBindings], which provides native parser access.
 class LocalIndexer {
-  LocalIndexer({required TreeSitterBindings bindings})
-    : _bindings = bindings,
-      _parser = bindings.ts_parser_new(),
+  LocalIndexer({required this.bindings})
+    : _parser = bindings.ts_parser_new(),
       _fieldName = _FieldNames() {
-    final language = _bindings.tree_sitter_apex();
-    final ok = _bindings.ts_parser_set_language(_parser, language);
+    final language = bindings.tree_sitter_apex();
+    final ok = bindings.ts_parser_set_language(_parser, language);
     if (ok == 0) {
       throw StateError('Failed to set Tree-sitter Apex language.');
     }
   }
 
-  final TreeSitterBindings _bindings;
+  final TreeSitterBindings bindings;
   final Pointer<TSParser> _parser;
 
   // Pre-allocated native UTF-8 pointers for the fixed set of Tree-sitter field
@@ -72,12 +71,20 @@ class LocalIndexer {
   /// final declarations = indexer.parseAndIndex(code);
   /// ```
   List<Declaration> parseAndIndex(String text) {
-    final bindings = _bindings;
+    final (declarations, tree) = parseAndIndexWithTree(text);
+    bindings.ts_tree_delete(tree);
+    return declarations;
+  }
+
+  /// Parses [text] and returns both declarations and the raw tree-sitter tree.
+  ///
+  /// The caller is responsible for deleting the tree by calling
+  /// `bindings.ts_tree_delete(tree)` when done.
+  (List<Declaration>, Pointer<TSTree>) parseAndIndexWithTree(String text) {
     final parser = _parser;
     final sourceBytes = utf8.encode(text);
     final sourcePtr = text.toNativeUtf8();
     try {
-      // Parse the source text into a syntax tree
       final tree = bindings.ts_parser_parse_string(
         parser,
         nullptr,
@@ -86,13 +93,8 @@ class LocalIndexer {
       );
 
       final root = bindings.ts_tree_root_node(tree);
-
-      List<int> bytes = sourceBytes;
-
-      final indexedResult = _visit(root, bytes);
-
-      bindings.ts_tree_delete(tree);
-      return indexedResult;
+      final declarations = _visit(root, sourceBytes);
+      return (declarations, tree);
     } finally {
       malloc.free(sourcePtr);
     }
@@ -130,7 +132,7 @@ class LocalIndexer {
           _visitChildren(
             node,
             bytes,
-            scopeEnd: _bindings.ts_node_end_byte(node),
+            scopeEnd: bindings.ts_node_end_byte(node),
           ),
         );
       case 'for_statement':
@@ -139,7 +141,7 @@ class LocalIndexer {
           _visitChildren(
             node,
             bytes,
-            scopeEnd: _bindings.ts_node_end_byte(node),
+            scopeEnd: bindings.ts_node_end_byte(node),
           ),
         );
       case 'enhanced_for_statement':
@@ -156,16 +158,16 @@ class LocalIndexer {
     int? scopeEnd,
   }) {
     List<Declaration> results = [];
-    final count = _bindings.ts_node_named_child_count(node);
+    final count = bindings.ts_node_named_child_count(node);
     for (var i = 0; i < count; i++) {
-      final child = _bindings.ts_node_named_child(node, i);
+      final child = bindings.ts_node_named_child(node, i);
       results.addAll(_visit(child, bytes, scopeEnd: scopeEnd));
     }
     return results;
   }
 
   String _nodeType(TSNode node) {
-    final ptr = _bindings.ts_node_type(node);
+    final ptr = bindings.ts_node_type(node);
     return ptr.toDartString();
   }
 
@@ -193,8 +195,8 @@ class LocalIndexer {
       DeclarationName(enumName),
       visibility: AlwaysVisible(),
       location: (
-        _bindings.ts_node_start_byte(node),
-        _bindings.ts_node_end_byte(node),
+        bindings.ts_node_start_byte(node),
+        bindings.ts_node_end_byte(node),
       ),
       values: members,
     );
@@ -242,8 +244,8 @@ class LocalIndexer {
       visibility: AlwaysVisible(),
       extendedInterfaces: extendedInterfaces,
       location: (
-        _bindings.ts_node_start_byte(node),
-        _bindings.ts_node_end_byte(node),
+        bindings.ts_node_start_byte(node),
+        bindings.ts_node_end_byte(node),
       ),
     );
   }
@@ -267,10 +269,10 @@ class LocalIndexer {
     if (typeListNodes.isEmpty) return const [];
 
     final typeList = typeListNodes.first;
-    final count = _bindings.ts_node_named_child_count(typeList);
+    final count = bindings.ts_node_named_child_count(typeList);
     final names = <String>[];
     for (var i = 0; i < count; i++) {
-      final child = _bindings.ts_node_named_child(typeList, i);
+      final child = bindings.ts_node_named_child(typeList, i);
       final name = _nodeText(child, bytes);
       if (name.isNotEmpty) {
         names.add(name);
@@ -286,9 +288,9 @@ class LocalIndexer {
     final superclassNode = _getField(node, 'superclass');
     String? superClass;
     if (!_isNullNode(superclassNode)) {
-      final count = _bindings.ts_node_named_child_count(superclassNode);
+      final count = bindings.ts_node_named_child_count(superclassNode);
       if (count > 0) {
-        final typeNode = _bindings.ts_node_named_child(superclassNode, 0);
+        final typeNode = bindings.ts_node_named_child(superclassNode, 0);
         final name = _nodeText(typeNode, bytes);
         if (name.isNotEmpty) superClass = name;
       }
@@ -407,8 +409,8 @@ class LocalIndexer {
       superClass: superClass,
       visibility: AlwaysVisible(),
       location: (
-        _bindings.ts_node_start_byte(node),
-        _bindings.ts_node_end_byte(node),
+        bindings.ts_node_start_byte(node),
+        bindings.ts_node_end_byte(node),
       ),
     );
   }
@@ -421,7 +423,7 @@ class LocalIndexer {
     final bodyNode = _getField(node, 'body');
     final bodyScopeEnd = _isNullNode(bodyNode)
         ? null
-        : _bindings.ts_node_end_byte(bodyNode);
+        : bindings.ts_node_end_byte(bodyNode);
 
     final declarations = <Declaration>[];
 
@@ -446,8 +448,8 @@ class LocalIndexer {
               DeclarationName(paramName),
               typeName: DeclarationName(paramType),
               location: (
-                _bindings.ts_node_start_byte(param),
-                _bindings.ts_node_end_byte(param),
+                bindings.ts_node_start_byte(param),
+                bindings.ts_node_end_byte(param),
               ),
               visibility: scopeVisibility,
             ),
@@ -463,8 +465,8 @@ class LocalIndexer {
     }
 
     return builder(Block(declarations: declarations), (
-      _bindings.ts_node_start_byte(node),
-      _bindings.ts_node_end_byte(node),
+      bindings.ts_node_start_byte(node),
+      bindings.ts_node_end_byte(node),
     ), parameters: methodParameters);
   }
 
@@ -474,7 +476,7 @@ class LocalIndexer {
   /// `for (Account acc : accounts)` declares `acc` visible within the loop.
   List<Declaration> _extractEnhancedFor(TSNode node, List<int> bytes) {
     final results = <Declaration>[];
-    final scopeEnd = _bindings.ts_node_end_byte(node);
+    final scopeEnd = bindings.ts_node_end_byte(node);
 
     // Extract the loop variable (e.g., "acc" in "for (Account acc : accounts)")
     final typeNode = _getField(node, 'type');
@@ -487,8 +489,8 @@ class LocalIndexer {
           DeclarationName(name),
           typeName: DeclarationName(typeName),
           location: (
-            _bindings.ts_node_start_byte(nameNode),
-            _bindings.ts_node_end_byte(nameNode),
+            bindings.ts_node_start_byte(nameNode),
+            bindings.ts_node_end_byte(nameNode),
           ),
           visibility: VisibleBetweenDeclarationAndScopeEnd(scopeEnd: scopeEnd),
         ),
@@ -524,9 +526,9 @@ class LocalIndexer {
 
     // A single declaration can contain multiple variable_declarator nodes
     final results = <IndexedVariable>[];
-    final childCount = _bindings.ts_node_named_child_count(node);
+    final childCount = bindings.ts_node_named_child_count(node);
     for (var i = 0; i < childCount; i++) {
-      final child = _bindings.ts_node_named_child(node, i);
+      final child = bindings.ts_node_named_child(node, i);
       if (_nodeType(child) == 'variable_declarator') {
         final nameNode = _getField(child, 'name');
         final name = _nodeText(nameNode, bytes);
@@ -536,8 +538,8 @@ class LocalIndexer {
               DeclarationName(name),
               typeName: DeclarationName(typeName),
               location: (
-                _bindings.ts_node_start_byte(child),
-                _bindings.ts_node_end_byte(child),
+                bindings.ts_node_start_byte(child),
+                bindings.ts_node_end_byte(child),
               ),
               visibility: visibility,
             ),
@@ -572,7 +574,7 @@ class LocalIndexer {
       final bodyNode = _getField(accessorNode, 'body');
       if (_isNullNode(bodyNode)) continue;
 
-      final scopeEnd = _bindings.ts_node_end_byte(bodyNode);
+      final scopeEnd = bindings.ts_node_end_byte(bodyNode);
       final declarations = _visitChildren(bodyNode, bytes, scopeEnd: scopeEnd);
       final block = Block(declarations: declarations);
 
@@ -593,8 +595,8 @@ class LocalIndexer {
       getterBody: getterBody,
       setterBody: setterBody,
       location: (
-        _bindings.ts_node_start_byte(fieldNode),
-        _bindings.ts_node_end_byte(fieldNode),
+        bindings.ts_node_start_byte(fieldNode),
+        bindings.ts_node_end_byte(fieldNode),
       ),
     );
   }
@@ -613,7 +615,7 @@ class LocalIndexer {
   /// 'parameters', and 'body'.
   TSNode _getField(TSNode node, String fieldName) {
     final (ptr, length) = _fieldName.lookup(fieldName);
-    return _bindings.ts_node_child_by_field_name(node, ptr, length);
+    return bindings.ts_node_child_by_field_name(node, ptr, length);
   }
 
   /// Extracts the source text for a Tree-sitter node.
@@ -621,8 +623,8 @@ class LocalIndexer {
   /// Uses the node's byte range to slice the original source bytes and
   /// decode them as UTF-8 text.
   String _nodeText(TSNode node, List<int> bytes) {
-    final start = _bindings.ts_node_start_byte(node);
-    final end = _bindings.ts_node_end_byte(node);
+    final start = bindings.ts_node_start_byte(node);
+    final end = bindings.ts_node_end_byte(node);
     if (start < 0 || end > bytes.length || start >= end) return '';
     return utf8.decode(bytes.sublist(start, end));
   }
@@ -638,10 +640,10 @@ class LocalIndexer {
   /// find specific constructs like enum constants or method parameters.
   List<TSNode> _collectDirectChildrenByType(TSNode root, String typeName) {
     final matches = <TSNode>[];
-    final namedCount = _bindings.ts_node_named_child_count(root);
+    final namedCount = bindings.ts_node_named_child_count(root);
 
     for (var i = 0; i < namedCount; i++) {
-      final child = _bindings.ts_node_named_child(root, i);
+      final child = bindings.ts_node_named_child(root, i);
       if (_nodeType(child) == typeName) {
         matches.add(child);
       }
@@ -714,7 +716,10 @@ final class _FieldNames {
       parameters = 'parameters'.toNativeUtf8(),
       declarator = 'declarator'.toNativeUtf8(),
       accessor = 'accessor'.toNativeUtf8(),
-      superclass = 'superclass'.toNativeUtf8();
+      superclass = 'superclass'.toNativeUtf8(),
+      object = 'object'.toNativeUtf8(),
+      field = 'field'.toNativeUtf8(),
+      arguments = 'arguments'.toNativeUtf8();
 
   final Pointer<Utf8> name;
   final Pointer<Utf8> body;
@@ -723,6 +728,9 @@ final class _FieldNames {
   final Pointer<Utf8> declarator;
   final Pointer<Utf8> accessor;
   final Pointer<Utf8> superclass;
+  final Pointer<Utf8> object;
+  final Pointer<Utf8> field;
+  final Pointer<Utf8> arguments;
 
   (Pointer<Utf8>, int) lookup(String fieldName) => switch (fieldName) {
     'name' => (name, 4),
@@ -732,6 +740,9 @@ final class _FieldNames {
     'declarator' => (declarator, 10),
     'accessor' => (accessor, 8),
     'superclass' => (superclass, 10),
+    'object' => (object, 6),
+    'field' => (field, 5),
+    'arguments' => (arguments, 9),
     _ => throw ArgumentError('Unknown Tree-sitter field name: "$fieldName"'),
   };
 }

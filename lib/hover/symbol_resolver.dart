@@ -1,4 +1,7 @@
+import 'dart:ffi';
+
 import 'package:apex_lsp/completion/helpers.dart';
+import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
 import 'package:apex_lsp/context/symbol_context.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/type_name.dart';
@@ -58,6 +61,8 @@ Future<ResolvedSymbol?> resolveSymbolAt({
   required int cursorOffset,
   required String text,
   required List<Declaration> index,
+  TreeSitterBindings? bindings,
+  Pointer<TSTree>? tree,
 }) async {
   if (cursorOffset < 0 || cursorOffset > text.length) return null;
 
@@ -72,6 +77,8 @@ Future<ResolvedSymbol?> resolveSymbolAt({
     cursorOffset: cursorOffset,
     index: expandedIndex,
     extractIdentifier: extractIdentifierAtCursor,
+    bindings: bindings,
+    tree: tree,
   );
 
   return switch (context) {
