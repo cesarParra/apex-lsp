@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:apex_lsp/completion/apex_keywords.dart';
 import 'package:apex_lsp/completion/completion.dart';
+import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
+import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/message.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:test/test.dart';
@@ -10,11 +14,30 @@ import '../../support/cursor_utils.dart';
 import '../../support/lsp_matchers.dart';
 
 void main() {
+  final libPath = Platform.environment['TS_SFAPEX_LIB'];
+  final treeSitterBindings = TreeSitterBindings.load(path: libPath);
+  final localIndexer = LocalIndexer(bindings: treeSitterBindings);
+
   Future<CompletionList> complete(
     TextWithPosition textWithPosition, {
     required List<Declaration> index,
     List<CompletionDataSource>? sources,
+    bool useTreeSitter = false,
   }) {
+    if (useTreeSitter) {
+      final (_, tree) = localIndexer.parseAndIndexWithTree(textWithPosition.text);
+      return onCompletion(
+        text: textWithPosition.text,
+        position: textWithPosition.position,
+        index: index,
+        sources: sources ?? [declarationSource(index)],
+        bindings: treeSitterBindings,
+        tree: tree,
+      ).then((result) {
+        treeSitterBindings.ts_tree_delete(tree);
+        return result;
+      });
+    }
     return onCompletion(
       text: textWithPosition.text,
       position: textWithPosition.position,
@@ -1778,6 +1801,277 @@ void main() {
       expect(completionList, containsCompletion('Season'));
       expect(completionList, containsCompletion('if'));
       expect(completionList, containsCompletion('for'));
+    });
+  });
+
+  group('call chaining', () {
+    test(
+      'completes members of the return type when chaining off a method via variable',
+      () async {
+        // obj is a variable of type MyClass; MyClass has a method getAccount()
+        // that returns Account; Account has a field Name.
+        // Typing obj.getAccount(). should offer Account members.
+        final accountClass = IndexedClass(
+          DeclarationName('Account'),
+          visibility: AlwaysVisible(),
+          members: [
+            FieldMember(
+              DeclarationName('Name'),
+              typeName: DeclarationName('String'),
+              isStatic: false,
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final myClass = IndexedClass(
+          DeclarationName('MyClass'),
+          visibility: AlwaysVisible(),
+          members: [
+            MethodDeclaration(
+              DeclarationName('getAccount'),
+              body: Block.empty(),
+              isStatic: false,
+              returnType: 'Account',
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final variable = IndexedVariable(
+          DeclarationName('obj'),
+          typeName: DeclarationName('MyClass'),
+          location: (0, 10),
+        );
+        final completionList = await complete(
+          extractCursorPosition('obj.getAccount().{cursor}'),
+          index: [variable, myClass, accountClass],
+          useTreeSitter: true,
+        );
+
+        expect(completionList, containsCompletion('Name'));
+      },
+    );
+
+    test(
+      'completes members of the return type for multi-level chaining',
+      () async {
+        // a.getB().getC(). should offer members of C's return type
+        final cClass = IndexedClass(
+          DeclarationName('C'),
+          visibility: AlwaysVisible(),
+          members: [
+            FieldMember(
+              DeclarationName('value'),
+              typeName: DeclarationName('String'),
+              isStatic: false,
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final bClass = IndexedClass(
+          DeclarationName('B'),
+          visibility: AlwaysVisible(),
+          members: [
+            MethodDeclaration(
+              DeclarationName('getC'),
+              body: Block.empty(),
+              isStatic: false,
+              returnType: 'C',
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final aClass = IndexedClass(
+          DeclarationName('A'),
+          visibility: AlwaysVisible(),
+          members: [
+            MethodDeclaration(
+              DeclarationName('getB'),
+              body: Block.empty(),
+              isStatic: false,
+              returnType: 'B',
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final variable = IndexedVariable(
+          DeclarationName('a'),
+          typeName: DeclarationName('A'),
+          location: (0, 10),
+        );
+        final completionList = await complete(
+          extractCursorPosition('a.getB().getC().{cursor}'),
+          index: [variable, aClass, bClass, cClass],
+          useTreeSitter: true,
+        );
+
+        expect(completionList, containsCompletion('value'));
+      },
+    );
+
+    test(
+      'completes members with prefix after chained call',
+      () async {
+        final accountClass = IndexedClass(
+          DeclarationName('Account'),
+          visibility: AlwaysVisible(),
+          members: [
+            FieldMember(
+              DeclarationName('Name'),
+              typeName: DeclarationName('String'),
+              isStatic: false,
+              visibility: AlwaysVisible(),
+            ),
+            FieldMember(
+              DeclarationName('Other'),
+              typeName: DeclarationName('String'),
+              isStatic: false,
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final myClass = IndexedClass(
+          DeclarationName('MyClass'),
+          visibility: AlwaysVisible(),
+          members: [
+            MethodDeclaration(
+              DeclarationName('getAccount'),
+              body: Block.empty(),
+              isStatic: false,
+              returnType: 'Account',
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final variable = IndexedVariable(
+          DeclarationName('obj'),
+          typeName: DeclarationName('MyClass'),
+          location: (0, 10),
+        );
+        final completionList = await complete(
+          extractCursorPosition('obj.getAccount().N{cursor}'),
+          index: [variable, myClass, accountClass],
+          useTreeSitter: true,
+        );
+
+        expect(completionList, containsCompletion('Name'));
+        expect(completionList, isNot(containsCompletion('Other')));
+      },
+    );
+
+    test('offers no completions when chaining off void return', () async {
+      final myClass = IndexedClass(
+        DeclarationName('MyClass'),
+        visibility: AlwaysVisible(),
+        members: [
+          MethodDeclaration(
+            DeclarationName('doWork'),
+            body: Block.empty(),
+            isStatic: false,
+            returnType: 'void',
+            visibility: AlwaysVisible(),
+          ),
+        ],
+      );
+      final variable = IndexedVariable(
+        DeclarationName('obj'),
+        typeName: DeclarationName('MyClass'),
+        location: (0, 10),
+      );
+      final completionList = await complete(
+        extractCursorPosition('obj.doWork().{cursor}'),
+        index: [variable, myClass],
+        useTreeSitter: true,
+      );
+
+      expect(completionList, hasNoCompletions);
+    });
+
+    test(
+      'completes members after chained call when following code is on the same line',
+      () async {
+        // When tree-sitter parses `obj.method().return`, it creates a chain
+        // that includes the keyword `return` as an extra field segment.
+        // The resolver must ignore non-identifier field nodes.
+        final configClass = IndexedClass(
+          DeclarationName('Config'),
+          visibility: AlwaysVisible(),
+          members: [
+            MethodDeclaration(
+              DeclarationName('withContext'),
+              body: Block.empty(),
+              isStatic: false,
+              returnType: 'Config',
+              visibility: AlwaysVisible(),
+            ),
+            FieldMember(
+              DeclarationName('value'),
+              typeName: DeclarationName('String'),
+              isStatic: false,
+              visibility: AlwaysVisible(),
+            ),
+          ],
+        );
+        final variable = IndexedVariable(
+          DeclarationName('myConfig'),
+          typeName: DeclarationName('Config'),
+          location: (0, 10),
+        );
+        // Cursor is right after the dot; a keyword follows on the same line,
+        // which tree-sitter may parse as the field name.
+        final completionList = await complete(
+          extractCursorPosition('myConfig.withContext().{cursor}return null;'),
+          index: [variable, configClass],
+          useTreeSitter: true,
+        );
+
+        expect(completionList, containsCompletion('value'));
+      },
+    );
+
+    test('completes constructor chain members immediately after dot', () async {
+      final configClass = IndexedClass(
+        DeclarationName('Configuration'),
+        visibility: AlwaysVisible(),
+        members: [
+          MethodDeclaration(
+            DeclarationName('withTimeout'),
+            body: Block.empty(),
+            isStatic: false,
+            returnType: 'Configuration',
+            visibility: AlwaysVisible(),
+          ),
+        ],
+      );
+      final completionList = await complete(
+        extractCursorPosition('new Configuration().{cursor}'),
+        index: [configClass],
+        useTreeSitter: true,
+      );
+
+      expect(completionList, containsCompletion('withTimeout'));
+    });
+
+    test('completes constructor chain members with a typed prefix', () async {
+      final configClass = IndexedClass(
+        DeclarationName('Configuration'),
+        visibility: AlwaysVisible(),
+        members: [
+          MethodDeclaration(
+            DeclarationName('withTimeout'),
+            body: Block.empty(),
+            isStatic: false,
+            returnType: 'Configuration',
+            visibility: AlwaysVisible(),
+          ),
+        ],
+      );
+      final completionList = await complete(
+        extractCursorPosition('new Configuration().withT{cursor}'),
+        index: [configClass],
+        useTreeSitter: true,
+      );
+
+      expect(completionList, containsCompletion('withTimeout'));
     });
   });
 

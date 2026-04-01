@@ -1,9 +1,17 @@
+import 'dart:io';
+
+import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
 import 'package:apex_lsp/hover/symbol_resolver.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
+import 'package:apex_lsp/indexing/local_indexer.dart';
 import 'package:apex_lsp/type_name.dart';
 import 'package:test/test.dart';
 
 void main() {
+  final libPath = Platform.environment['TS_SFAPEX_LIB'];
+  final treeSitterBindings = TreeSitterBindings.load(path: libPath);
+  final localIndexer = LocalIndexer(bindings: treeSitterBindings);
+
   group('resolveSymbolAt', () {
     group('local variables', () {
       test('resolves a local variable at its usage site', () async {
@@ -923,6 +931,123 @@ void main() {
 
           // Constructor members are not hoverable.
           expect(result, isNull);
+        },
+      );
+    });
+
+    group('call chaining', () {
+      test(
+        'resolves a field accessed on a method call return type',
+        () async {
+          final accountClass = IndexedClass(
+            DeclarationName('Account'),
+            visibility: AlwaysVisible(),
+            members: [
+              FieldMember(
+                DeclarationName('Name'),
+                typeName: DeclarationName('String'),
+                isStatic: false,
+                visibility: AlwaysVisible(),
+              ),
+            ],
+          );
+          final myClass = IndexedClass(
+            DeclarationName('MyClass'),
+            visibility: AlwaysVisible(),
+            members: [
+              MethodDeclaration(
+                DeclarationName('getAccount'),
+                body: Block.empty(),
+                isStatic: false,
+                returnType: 'Account',
+                visibility: AlwaysVisible(),
+              ),
+            ],
+          );
+          final variable = IndexedVariable(
+            DeclarationName('obj'),
+            typeName: DeclarationName('MyClass'),
+            location: (0, 10),
+          );
+
+          const text = 'obj.getAccount().Name';
+          final cursorOffset = text.indexOf('Name');
+          final (_, tree) = localIndexer.parseAndIndexWithTree(text);
+          final result = await resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: [variable, myClass, accountClass],
+            bindings: treeSitterBindings,
+            tree: tree,
+          );
+          treeSitterBindings.ts_tree_delete(tree);
+
+          expect(result, isA<ResolvedField>());
+          expect((result as ResolvedField).field.name.value, equals('Name'));
+        },
+      );
+
+      test(
+        'resolves a field via multi-level chaining',
+        () async {
+          final cClass = IndexedClass(
+            DeclarationName('C'),
+            visibility: AlwaysVisible(),
+            members: [
+              FieldMember(
+                DeclarationName('value'),
+                typeName: DeclarationName('String'),
+                isStatic: false,
+                visibility: AlwaysVisible(),
+              ),
+            ],
+          );
+          final bClass = IndexedClass(
+            DeclarationName('B'),
+            visibility: AlwaysVisible(),
+            members: [
+              MethodDeclaration(
+                DeclarationName('getC'),
+                body: Block.empty(),
+                isStatic: false,
+                returnType: 'C',
+                visibility: AlwaysVisible(),
+              ),
+            ],
+          );
+          final aClass = IndexedClass(
+            DeclarationName('A'),
+            visibility: AlwaysVisible(),
+            members: [
+              MethodDeclaration(
+                DeclarationName('getB'),
+                body: Block.empty(),
+                isStatic: false,
+                returnType: 'B',
+                visibility: AlwaysVisible(),
+              ),
+            ],
+          );
+          final variable = IndexedVariable(
+            DeclarationName('a'),
+            typeName: DeclarationName('A'),
+            location: (0, 10),
+          );
+
+          const text = 'a.getB().getC().value';
+          final cursorOffset = text.indexOf('value');
+          final (_, tree) = localIndexer.parseAndIndexWithTree(text);
+          final result = await resolveSymbolAt(
+            cursorOffset: cursorOffset,
+            text: text,
+            index: [variable, aClass, bClass, cClass],
+            bindings: treeSitterBindings,
+            tree: tree,
+          );
+          treeSitterBindings.ts_tree_delete(tree);
+
+          expect(result, isA<ResolvedField>());
+          expect((result as ResolvedField).field.name.value, equals('value'));
         },
       );
     });

@@ -16,7 +16,7 @@ Future<Hover?> onHover({
     return null;
   }
 
-  final localIndex = localIndexer.parseAndIndex(openDocumentText);
+  final (localIndex, tree) = localIndexer.parseAndIndexWithTree(openDocumentText);
   final workspaceTypes = await indexRepository?.getDeclarations() ?? [];
   final index = [...localIndex, ...workspaceTypes];
 
@@ -26,11 +26,17 @@ Future<Hover?> onHover({
     character: params.position.character,
   );
 
-  final resolved = await resolveSymbolAt(
-    cursorOffset: cursorOffset,
-    text: openDocumentText,
-    index: index,
-  );
+  try {
+    final resolved = await resolveSymbolAt(
+      cursorOffset: cursorOffset,
+      text: openDocumentText,
+      index: index,
+      bindings: localIndexer.bindings,
+      tree: tree,
+    );
 
-  return resolved != null ? formatHover(resolved) : null;
+    return resolved != null ? formatHover(resolved) : null;
+  } finally {
+    localIndexer.bindings.ts_tree_delete(tree);
+  }
 }

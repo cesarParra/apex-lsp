@@ -1,4 +1,10 @@
+import 'dart:convert';
+import 'dart:ffi';
+
 import 'package:apex_lsp/completion/helpers.dart';
+import 'package:apex_lsp/completion/tree_sitter_bindings.dart';
+import 'package:apex_lsp/context/chain_type_resolver.dart';
+import 'package:apex_lsp/context/expression_chain.dart';
 import 'package:apex_lsp/indexing/declarations.dart';
 import 'package:apex_lsp/type_name.dart';
 
@@ -87,6 +93,8 @@ Future<SymbolContext> detectSymbolContext({
   required int cursorOffset,
   required List<Declaration> index,
   IdentifierExtractor extractIdentifier = extractIdentifierPrefix,
+  TreeSitterBindings? bindings,
+  Pointer<TSTree>? tree,
 }) async {
   final extracted = extractIdentifier(text, cursorOffset);
   final identifier = extracted.value;
@@ -117,7 +125,18 @@ Future<SymbolContext> detectSymbolContext({
     }
     final objectName = _extractIdentifierBefore(text, objectIndex);
     if (objectName == null) {
-      return SymbolContextNone();
+      // Text scanning hit a non-identifier character (e.g., `)` from a method
+      // call). Try resolving via the tree-sitter AST instead.
+      final chainResult = _tryChainResolution(
+        text: text,
+        dotIndex: dotIndex,
+        identifier: identifier,
+        cursorOffset: cursorOffset,
+        index: index,
+        bindings: bindings,
+        tree: tree,
+      );
+      return chainResult ?? SymbolContextNone();
     }
 
     final isThis = DeclarationName(objectName) == const DeclarationName('this');
@@ -152,7 +171,8 @@ Future<SymbolContext> detectSymbolContext({
         FieldMember(:final typeName) ||
         PropertyDeclaration(:final typeName) => typeName?.value,
 
-        MethodDeclaration() || EnumValueMember() => throw UnimplementedError(),
+        MethodDeclaration(:final returnType) => returnType,
+        EnumValueMember() => null,
 
         // Return the declared type name so member completions resolve correctly.
         IndexedVariable(:final typeName) => typeName.value,
@@ -204,6 +224,71 @@ int? _findMemberDotIndex(String text, int cursorOffset) {
 }
 
 bool _isWhitespace(int ch) => ch == 32 || ch == 9 || ch == 10 || ch == 13;
+
+/// Attempts to resolve the type context using the tree-sitter AST when text
+/// scanning fails (e.g., because the expression before the dot contains
+/// parentheses from a method call).
+///
+/// Extracts the chain of segments ending just before [dotIndex] and resolves
+/// all but the last segment to produce the type context for member completion.
+SymbolContextMember? _tryChainResolution({
+  required String text,
+  required int dotIndex,
+  required String identifier,
+  required int cursorOffset,
+  required List<Declaration> index,
+  required TreeSitterBindings? bindings,
+  required Pointer<TSTree>? tree,
+}) {
+  if (bindings == null || tree == null) return null;
+
+  final sourceBytes = utf8.encode(text);
+
+  // Probe just before the dot to find the expression ending there.
+  final probeOffset = dotIndex > 0 ? dotIndex - 1 : 0;
+
+  final chain = extractExpressionChain(
+    bindings: bindings,
+    tree: tree,
+    sourceBytes: sourceBytes,
+    cursorOffset: cursorOffset,
+    probeOffset: probeOffset,
+  );
+
+  if (chain == null || chain.isEmpty) return null;
+
+  // If the last segment matches the typed prefix, it is the partial member name
+  // being typed, not a completed member. Exclude it so resolution produces the
+  // receiver type rather than treating the prefix as a member name.
+  final resolveSegments =
+      identifier.isNotEmpty &&
+          chain.last.name.toLowerCase() == identifier.toLowerCase()
+      ? chain.sublist(0, chain.length - 1)
+      : chain;
+
+  if (resolveSegments.isEmpty) return null;
+
+  final typeName = resolveChainType(
+    segments: resolveSegments,
+    index: index,
+    cursorOffset: cursorOffset,
+  );
+
+  // When the chain starts with a constructor call, there is no named object
+  // on the left-hand side (e.g. `new Foo().bar` has no object named "Foo").
+  // Passing null avoids the static-access heuristic that treats a matching
+  // objectName/typeName pair as a static member access.
+  final objectName =
+      chain.first is ObjectCreationSegment ? null : chain.first.name;
+
+  return SymbolContextMember(
+    typeName: typeName,
+    objectName: objectName,
+    prefix: identifier,
+    text: text,
+    cursorOffset: cursorOffset,
+  );
+}
 
 String? _extractIdentifierBefore(String text, int index) {
   var i = index;

@@ -341,7 +341,7 @@ final class Server {
     if (text == null) {
       return;
     }
-    final localIndex = localIndexer.parseAndIndex(text);
+    final (localIndex, tree) = localIndexer.parseAndIndexWithTree(text);
     final workspaceTypes = await _indexRepository?.getDeclarations() ?? [];
 
     final index = [...localIndex, ...workspaceTypes];
@@ -354,13 +354,19 @@ final class Server {
     final enclosing = index.enclosingAt<Declaration>(cursorOffset);
     final expandedIndex = [...index, ...getBodyDeclarations(enclosing)];
 
-    final completionList = await onCompletion(
-      text: text,
-      position: params.position,
-      index: expandedIndex,
-      sources: [declarationSource(expandedIndex), keywordSource],
-    );
-    await _output.sendResponse(id: id, result: completionList.toJson());
+    try {
+      final completionList = await onCompletion(
+        text: text,
+        position: params.position,
+        index: expandedIndex,
+        sources: [declarationSource(expandedIndex), keywordSource],
+        bindings: localIndexer.bindings,
+        tree: tree,
+      );
+      await _output.sendResponse(id: id, result: completionList.toJson());
+    } finally {
+      localIndexer.bindings.ts_tree_delete(tree);
+    }
   }
 
   /// Handles the LSP `textDocument/hover` request.
