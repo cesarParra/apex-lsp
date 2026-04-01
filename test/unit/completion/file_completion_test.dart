@@ -1780,4 +1780,67 @@ void main() {
       expect(completionList, containsCompletion('for'));
     });
   });
+
+  group('super member access', () {
+    late IndexedClass parentClass;
+    late IndexedClass childClass;
+
+    setUp(() {
+      parentClass = IndexedClass(
+        DeclarationName('Animal'),
+        visibility: AlwaysVisible(),
+        members: [
+          MethodDeclaration(
+            DeclarationName('speak'),
+            isStatic: false,
+            body: Block.empty(),
+            visibility: AlwaysVisible(),
+          ),
+        ],
+      );
+      childClass = IndexedClass(
+        DeclarationName('Dog'),
+        visibility: AlwaysVisible(),
+        superClass: 'Animal',
+        location: (0, 200),
+        members: [
+          MethodDeclaration(
+            DeclarationName('bark'),
+            isStatic: false,
+            body: Block(declarations: []),
+            location: (20, 180),
+            visibility: AlwaysVisible(),
+          ),
+        ],
+      );
+    });
+
+    test('completes instance members of the superclass on super.', () async {
+      final completionList = await complete(
+        extractCursorPosition('''
+public class Dog extends Animal {
+  public void bark() {
+    super.{cursor}
+  }
+}'''),
+        index: [parentClass, childClass],
+      );
+
+      expect(completionList, containsCompletion('speak'));
+    });
+
+    test('does not include current class members on super.', () async {
+      final completionList = await complete(
+        extractCursorPosition('''
+public class Dog extends Animal {
+  public void bark() {
+    super.{cursor}
+  }
+}'''),
+        index: [parentClass, childClass],
+      );
+
+      expect(completionList, isNot(containsCompletion('bark')));
+    });
+  });
 }

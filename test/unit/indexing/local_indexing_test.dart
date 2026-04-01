@@ -864,4 +864,24 @@ public class Foo {
       expect(cls.members.first, isA<FieldMember>());
     });
   });
+
+  group('indexes class inheritance', () {
+    test('extracts superClass name from extends clause', () {
+      final text = 'public class Dog extends Animal {}';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      expect(cls.superClass, equals('Animal'));
+    });
+
+    test('superClass is null when no extends clause', () {
+      final text = 'public class Dog {}';
+
+      final result = indexer.parseAndIndex(text);
+
+      final cls = result.first as IndexedClass;
+      expect(cls.superClass, isNull);
+    });
+  });
 }
