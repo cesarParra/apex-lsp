@@ -120,11 +120,17 @@ Future<SymbolContext> detectSymbolContext({
       return SymbolContextNone();
     }
 
-    if (DeclarationName(objectName) == const DeclarationName('this')) {
-      final enclosingClass = index.enclosingAt<IndexedClass>(cursorOffset);
+    final isThis = DeclarationName(objectName) == const DeclarationName('this');
+    final isSuper =
+        DeclarationName(objectName) == const DeclarationName('super');
+
+    if (isThis || isSuper) {
+      final enclosingClass = index.innermostEnclosingAt<IndexedClass>(cursorOffset);
 
       return SymbolContextMember(
-        typeName: enclosingClass?.name.value,
+        typeName: isThis
+            ? enclosingClass?.name.value
+            : enclosingClass?.superClass,
         objectName: objectName,
         prefix: identifier,
         text: text,

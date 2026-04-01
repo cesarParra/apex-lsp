@@ -283,6 +283,17 @@ class LocalIndexer {
     final nameNode = _getField(node, 'name');
     final className = _nodeText(nameNode, bytes);
 
+    final superclassNode = _getField(node, 'superclass');
+    String? superClass;
+    if (!_isNullNode(superclassNode)) {
+      final count = _bindings.ts_node_named_child_count(superclassNode);
+      if (count > 0) {
+        final typeNode = _bindings.ts_node_named_child(superclassNode, 0);
+        final name = _nodeText(typeNode, bytes);
+        if (name.isNotEmpty) superClass = name;
+      }
+    }
+
     final staticInitializers = <Block>[];
     final bodyNode = _getField(node, 'body');
     final members = <Declaration>[];
@@ -393,6 +404,7 @@ class LocalIndexer {
       DeclarationName(className),
       members: members,
       staticInitializers: staticInitializers,
+      superClass: superClass,
       visibility: AlwaysVisible(),
       location: (
         _bindings.ts_node_start_byte(node),
@@ -701,7 +713,8 @@ final class _FieldNames {
       type = 'type'.toNativeUtf8(),
       parameters = 'parameters'.toNativeUtf8(),
       declarator = 'declarator'.toNativeUtf8(),
-      accessor = 'accessor'.toNativeUtf8();
+      accessor = 'accessor'.toNativeUtf8(),
+      superclass = 'superclass'.toNativeUtf8();
 
   final Pointer<Utf8> name;
   final Pointer<Utf8> body;
@@ -709,6 +722,7 @@ final class _FieldNames {
   final Pointer<Utf8> parameters;
   final Pointer<Utf8> declarator;
   final Pointer<Utf8> accessor;
+  final Pointer<Utf8> superclass;
 
   (Pointer<Utf8>, int) lookup(String fieldName) => switch (fieldName) {
     'name' => (name, 4),
@@ -717,6 +731,7 @@ final class _FieldNames {
     'parameters' => (parameters, 10),
     'declarator' => (declarator, 10),
     'accessor' => (accessor, 8),
+    'superclass' => (superclass, 10),
     _ => throw ArgumentError('Unknown Tree-sitter field name: "$fieldName"'),
   };
 }

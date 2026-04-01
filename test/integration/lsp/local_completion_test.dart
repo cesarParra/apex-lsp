@@ -517,6 +517,50 @@ public enum Color { RED, GREEN, BLUE }
           expect(completions, containsCompletion('bar'));
         });
 
+        test('completes `super` references to superclass members', () async {
+          final textWithPosition = extractCursorPosition('''
+        public class Animal {
+          public void speak() {}
+        }
+        public class Dog extends Animal {
+          public void bark() {
+            super.{cursor}
+          }
+        }''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('speak'));
+        });
+
+        test('completes `super` references inside an inner class method', () async {
+          final textWithPosition = extractCursorPosition('''
+        public class QRunner {
+          public virtual void run() {}
+          private class WithSharing extends QRunner {
+            public override void run() {
+              super.{cursor}
+            }
+          }
+        }''');
+          final document = Document.withText(textWithPosition.text);
+          await client.openDocument(document);
+
+          final completions = await client.completion(
+            uri: document.uri,
+            line: textWithPosition.position.line,
+            character: textWithPosition.position.character,
+          );
+
+          expect(completions, containsCompletion('run'));
+        });
+
         test('completes class members from getter block', () async {
           final textWithPosition = extractCursorPosition('''
       public class Animal {

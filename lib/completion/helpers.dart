@@ -109,6 +109,27 @@ extension DeclarationsExtension on List<Declaration> {
         return cursorOffset >= location.$1 && cursorOffset <= location.$2;
       });
 
+  /// Returns the innermost (smallest byte range) [T] that contains [cursorOffset].
+  ///
+  /// When multiple declarations of type [T] are nested (e.g. an inner class
+  /// inside an outer class), this returns the most specific one rather than
+  /// the first encountered in the list.
+  T? innermostEnclosingAt<T extends Declaration>(int cursorOffset) {
+    T? result;
+    int? smallestRange;
+    for (final declaration in whereType<T>()) {
+      final location = declaration.location;
+      if (location == null) continue;
+      if (cursorOffset < location.$1 || cursorOffset > location.$2) continue;
+      final range = location.$2 - location.$1;
+      if (smallestRange == null || range < smallestRange) {
+        smallestRange = range;
+        result = declaration;
+      }
+    }
+    return result;
+  }
+
   /// Resolves a dot-qualified name (e.g. "Foo.Bar") by walking through
   /// class members. Returns null if any segment cannot be resolved.
   Declaration? resolveQualifiedName(String qualifiedName) {
